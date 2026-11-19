@@ -14,7 +14,7 @@ python -m venv .venv
 
 Rules mode detects Lithuanian phone formats, email addresses and checksum-valid personal, company, VAT and Lithuanian IBAN identifiers. Company-code detection requires a matching Lithuanian field label, and VAT detection requires the LT prefix. A reviewer can mark additional spans. With the evaluation dependencies and a complete local checkpoint, the default **NUS + rules** mode combines both detectors. Use **NUS only** to compare on the same text.
 
-1. Select **Create workspace** and save the vault under the ignored `vault/` directory or outside the repository. Choose a passphrase. Use **Import document** to open TXT, Markdown or text-based PDF files, or paste text into a new document.
+1. Select **Create workspace** and save the vault under the ignored `vault/` directory or outside the repository. Choose a passphrase. Use **Import document** to open TXT, TSV, Markdown or text-based PDF files, or paste text into a new document.
 2. Select **Detect** and review the highlighted findings. Mark missed spans, correct categories, and link mentions of the same entity explicitly if appropriate. Use **Categories and profiles** to select groups or individual categories and save a named profile. Use **Toggle exclusion** to retain specific occurrences. Policy changes use the current findings without running NUS again.
 3. Choose **Pseudonymize** for reversible references. **Redact irreversibly** is available for permanent text removal in the output. Inspect the exact preview for residual identifiers before saving or copying it.
 4. Review and export another document in the same workspace. Combine or reorder the pseudonymized passages and paste them into **Restore derived text**, or import derived TXT or Markdown files. You can lock the workspace or close PrivaPII, then reopen the workspace with its passphrase and restore the same references. Review the attribution and Lithuanian grammar before reusing the restored text.
@@ -30,6 +30,10 @@ The **Standard** profile keeps generic dates, times, durations and quantities av
 Pseudonymized output uses typed references such as `[PRIVAPII_V2_PER_…]` with opaque identifiers. The encrypted workspace stores the exact value and its source. Keep the reference intact when sharing text for analysis or transformation. Previously exported V1 references remain valid in the workspace that created them.
 
 **Save reviewed export** offers UTF-8 TXT and Markdown. Choose the format and inspect the exact file contents before saving. Markdown documents retain their source markup. For extracted text, Markdown adds recognized Lithuanian section headings and preserves explicit clause numbers as literal labels to prevent renderer renumbering. The formatter preserves token strings and does not reconstruct source PDF tables or complex layouts.
+
+**CSV** is also available when both the source and the protected output contain one complete rectangular Markdown pipe table or one tab-separated table. The preview checks row and column counts and token order. The Markdown table must have an explicit header separator and simple cells. Tables embedded in prose and inferred PDF or OCR column layouts are outside this export mode.
+
+Import a single derived CSV in **Restore derived text** to select CSV mode. PrivaPII restores values by cell and serializes the table with quoting. Inspect the restored preview and use **Save restored CSV** to create a local file containing the original values.
 
 ### Linked person forms
 
