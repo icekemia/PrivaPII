@@ -56,7 +56,7 @@ Obtain licenses and provenance for each dataset, model checkpoint, code package 
 | Critical direct identifiers | Target ≥99% recall per enabled critical category for text, including names, personal and identity document codes, direct contact details and bank identifiers. Report the 95% lower confidence bound and sample size. A category with sparse evidence requires manual review and no automated coverage claim. |
 | Other enabled categories | Target ≥95% recall per category and document the worst subgroups. Assess special-category and contextual disclosure at the document level and require review. |
 | Hybrid adoption | Reduce critical omissions and document leakage versus original NUS on the frozen set. Compare paired outcomes and inspect any regressions by category. Record precision and review time as costs. |
-| Reviewed exports | Observe zero residual critical items and target ≤1% document leakage under the tested policy. For a 1% upper-bound claim with zero leaks, collect at least 299 independent eligible cases for a one-sided 95% exact bound. Keep claims scoped to the tested domains and formats. |
+| Reviewed exports | Observe zero residual critical items and target ≤1% document leakage under the tested policy. Report a separate case leakage bound. With zero leaking cases, at least 299 independent eligible cases support a one-sided 95% exact upper bound below 1% for case leakage. Keep claims scoped to the tested domains and formats. |
 | Restoration | Zero incorrect substitutions and zero foreign or revoked token resolutions in the regression suite. Exercise repeated and reordered tokens, homonyms, grammar, corruption, missing tokens, case isolation, stale previews and unavailable vaults. |
 | CPU usability | Provisional targets on an 8 GB Windows CPU-only reference device are p95 ≤15 seconds for a five-page text document and peak memory ≤3 GB. Measure cold and warm runs separately and set an OCR per-page budget from the prototype. |
 
@@ -90,4 +90,4 @@ Estimates below are planning ranges for a small team with one engineer and part-
 
 **First implementation cycle.** Assign owners for the license inventory and annotation protocol, pin the NUS baseline, and draft the vault threat model and token contract. Run the baseline and the multi-document restoration proof in parallel. Use their results to prioritize the hybrid rules and decide when the desktop pilot is ready to start.
 
-Platform, thresholds, effort and token format are proposed decisions to validate during feasibility.
+Platform, thresholds, effort and token format are proposed decisions to validate during feasibility. See the [dependency review](Dependency_Review.md) and [benchmark protocol](Benchmark_Protocol.md) for the initial reconnaissance results.
