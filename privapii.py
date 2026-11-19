@@ -142,10 +142,18 @@ def review_spans(text, findings):
         elif cursor < span.end:
             retain_fragment(retained, span, text, cursor, span.end)
     reviewed = retained + birth_dates + written_dates
-    return sorted({
-        expand_person(text, span, reviewed) if span.label == "PER" and span.source != "manual" else span
-        for span in reviewed
-    })
+    output = []
+    for span in reviewed:
+        if span.label == "PER" and span.source != "manual":
+            span = expand_person(text, span, reviewed)
+        if span.source.startswith("nus") and "\n" in text[span.start:span.end]:
+            cursor = span.start
+            for line in text[span.start:span.end].splitlines(keepends=True):
+                retain_fragment(output, span, text, cursor, cursor + len(line))
+                cursor += len(line)
+        else:
+            output.append(span)
+    return sorted(set(output))
 
 
 def expand_person(text, span, findings):

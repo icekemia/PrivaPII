@@ -53,6 +53,17 @@ class ContextTests(unittest.TestCase):
         self.assertIn("\n1. Sąlyga", output)
         self.assertNotIn("AB-123", output)
 
+    def test_automatic_cross_line_finding_preserves_markdown_line_break(self):
+        from export_formats import render_export
+
+        text = "Asmuo: Jonas Petraitis\nPranešimas"
+        span = Span(text.index("Jonas"), len(text), "PER", "nus")
+        case = Case()
+        export = case.transform(text, review_spans(text, [span]))
+        markdown = render_export(export, "Markdown", "fixture.pdf")
+        self.assertIn("  \n", markdown)
+        self.assertEqual(case.restore(markdown)[0], render_export(text, "Markdown", "fixture.pdf"))
+
     def test_written_document_date_survives_split_automatic_findings(self):
         text = "Nr. AB-12\n2026 m. lapkričio mėn. 16 d.\nSąlygos"
         year = text.index("2026")
