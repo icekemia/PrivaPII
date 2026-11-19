@@ -1,6 +1,7 @@
 """PrivaPII local text-review desktop demonstrator."""
 
 import argparse
+import hashlib
 import sqlite3
 import tkinter as tk
 from concurrent.futures import ThreadPoolExecutor
@@ -11,11 +12,14 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 from export_formats import TEXT_FORMATS, render_export, restore_csv
 from ingestion import extract
 from nus import NusDetector, checkpoint_ready
+from ocr import raster_pages
 from ocr_review import Reviewer, ScanProcessor, export_review
 from pdf_redaction_view import PdfRedactionView
 from pdf_tables import extract_pdf_tables
 from policy import ALL_CATEGORIES, CATEGORY_GROUPS, PROFILES, selected_indices
 from privapii import TOKEN, Case, Span, hybrid, review_spans
+from raster_tables import find_grids
+from table_grid_view import TableGridView
 from tabular import detect_table
 from vault import Workspace, new_id
 
@@ -164,7 +168,12 @@ class App:
         self.detect_button = self.button(bar, "Detect", self.detect)
         self.button(bar, "Import document", self.open_source)
         self.table_button = self.button(bar, "PDF table", self.open_pdf_table)
-        self.scan_button = self.button(bar, "Review scan", self.open_scan)
+        self.scan_button = ttk.Menubutton(bar, text="Review scan")
+        scan_menu = tk.Menu(self.scan_button, tearoff=False)
+        scan_menu.add_command(label="Document lines", command=self.open_scan)
+        scan_menu.add_command(label="Table cells", command=lambda: self.open_scan(table=True))
+        self.scan_button.configure(menu=scan_menu)
+        self.scan_button.pack(side="left", padx=(0, 6))
         self.button(bar, "Mark selected text", self.mark)
         self.button(bar, "Categories and profiles", self.edit_policy)
         modes = ("Rules only", "NUS only", "NUS + rules") if checkpoint_ready(model_dir) else ("Rules only",)
@@ -491,7 +500,7 @@ class App:
 
         self.root.after(100, poll)
 
-    def open_scan(self):
+    def open_scan(self, *, table=False):
         if not self.workspace_active():
             self.status.set("Create or unlock a workspace before reviewing a scan.")
             return
@@ -503,9 +512,18 @@ class App:
             return
         source = Path(path)
         workspace = self.case
+        if table:
+            self.scan_task(workspace, "Looking for table grids…", lambda: self.read_scan_grids(source),
+                           lambda result: self.select_scan_grid(workspace, source, result))
+        else:
+            self.scan_task(workspace, "Reading the scan with both local OCR engines…",
+                           lambda: self.read_scan(source),
+                           lambda result: self.review_scan_output(workspace, source, result))
+
+    def scan_task(self, workspace, status, work, ready):
         self.set_processing(True)
-        self.status.set("Reading the scan with both local OCR engines…")
-        future = self.worker.submit(self.read_scan, source)
+        self.status.set(status)
+        future = self.worker.submit(work)
 
         def poll():
             if not future.done():
@@ -515,34 +533,70 @@ class App:
             if self.case is not workspace:
                 return
             try:
-                pages, reviews, digest = future.result()
-                window = tk.Toplevel(self.root)
-                window.transient(self.root)
-                review = Reviewer(window, pages, reviews)
-                window.grab_set()
-                self.root.wait_window(window)
-                if not review.confirmed:
-                    self.status.set("OCR review canceled.")
-                    return
-                if self.case is not workspace or not self.persist():
-                    return
-                output = export_review(workspace, source, digest, 250, reviews)
-                self.load_document(next(reversed(workspace.documents)))
-                document = workspace.documents[self.document_id]
-                self.preview_text_export(output, source.name, source_text=document["text"],
-                                         pdf_review=lambda parent: self.preview_pdf(parent, pages, reviews))
-                self.status.set("OCR review saved to the encrypted workspace.")
+                ready(future.result())
             except Exception as error:
                 self.status.set("OCR review failed.")
                 messagebox.showerror("OCR review failed", str(error), parent=self.root)
 
         self.root.after(100, poll)
 
-    def read_scan(self, source):
+    @staticmethod
+    def read_scan_grids(source):
+        with source.open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        pages = dict(raster_pages(source))
+        if not pages:
+            raise ValueError("No pages were available for grid review.")
+        with source.open("rb") as stream:
+            if hashlib.file_digest(stream, "sha256").hexdigest() != digest:
+                raise ValueError("The source changed while rendering. Import it again.")
+        return pages, {page: find_grids(raster, page) for page, raster in pages.items()}, digest
+
+    def select_scan_grid(self, workspace, source, result):
+        pages, grids, digest = result
+        view = TableGridView(self.root, pages, grids)
+        view.window.grab_set()
+        self.root.wait_window(view.window)
+        if not view.result:
+            self.status.set("Table grid review canceled.")
+            return
+        table = view.result
+
+        def read_table():
+            self.ready_scan_engines()
+            reviews = self.scan_processor.read_table(pages[table.page], table, self.detector)
+            return pages, reviews, digest
+
+        self.scan_task(workspace, "Reading the selected cells with both OCR engines…", read_table,
+                       lambda output: self.review_scan_output(workspace, source, output))
+
+    def review_scan_output(self, workspace, source, result):
+        pages, reviews, digest = result
+        window = tk.Toplevel(self.root)
+        window.transient(self.root)
+        review = Reviewer(window, pages, reviews)
+        window.grab_set()
+        self.root.wait_window(window)
+        if not review.confirmed:
+            self.status.set("OCR review canceled.")
+            return
+        if self.case is not workspace or not self.persist():
+            return
+        output = export_review(workspace, source, digest, 250, reviews)
+        self.load_document(next(reversed(workspace.documents)))
+        document = workspace.documents[self.document_id]
+        self.preview_text_export(output, document["name"], source_text=document["text"],
+                                 pdf_review=lambda parent: self.preview_pdf(parent, pages, reviews))
+        self.status.set("OCR review saved to the encrypted workspace.")
+
+    def ready_scan_engines(self):
         if self.scan_processor is None:
             self.scan_processor = ScanProcessor(self.model_dir.parent)
         if self.detector is None:
             self.detector = NusDetector(self.model_dir)
+
+    def read_scan(self, source):
+        self.ready_scan_engines()
         return self.scan_processor.read(source, 250, self.detector)
 
     def preview_text_export(self, output, source_name, *, source_text=None, pdf_review=None):

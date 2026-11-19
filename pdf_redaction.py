@@ -37,8 +37,9 @@ def review_masks(pages, reviews, padding=12):
     for item in reviews:
         if item.action in {"protect", "mask"}:
             image = pages[item.page]
-            result[item.page].append(clamp_box(item.region.box, image.size, padding))
-        elif item.action != "keep":
+            margin = 0 if item.cell is not None else padding
+            result[item.page].append(clamp_box(item.region.box, image.size, margin))
+        elif item.action not in {"keep", "empty", "continuation"}:
             raise ValueError("Unknown OCR review action.")
     return result
 

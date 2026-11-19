@@ -56,18 +56,24 @@ class Tesseract:
             raise ValueError("The local Tesseract Lithuanian language model is missing.")
         self.model_dir = model_dir
 
-    def read(self, image):
+    def read(self, image, *, single_cell=False):
         from tesserocr import PSM, RIL, PyTessBaseAPI
 
         result = []
-        with PyTessBaseAPI(path=str(self.model_dir.resolve()), lang="lit", psm=PSM.AUTO) as api:
+        mode = PSM.SINGLE_BLOCK if single_cell else PSM.AUTO
+        with PyTessBaseAPI(path=str(self.model_dir.resolve()), lang="lit", psm=mode) as api:
             api.SetImage(image)
             api.Recognize()
             iterator = api.GetIterator()
             if iterator:
                 while True:
                     box = iterator.BoundingBox(RIL.TEXTLINE)
-                    content = (iterator.GetUTF8Text(RIL.TEXTLINE) or "").strip()
+                    try:
+                        content = (iterator.GetUTF8Text(RIL.TEXTLINE) or "").strip() if box else ""
+                    except RuntimeError as error:
+                        if str(error) != "No text returned":
+                            raise
+                        content = ""
                     if box and content:
                         result.append(Reading(content, box, iterator.Confidence(RIL.TEXTLINE), "tesseract-lit"))
                     if not iterator.Next(RIL.TEXTLINE):

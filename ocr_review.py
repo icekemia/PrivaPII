@@ -3,13 +3,15 @@
 import argparse
 import hashlib
 import tkinter as tk
-from dataclasses import asdict, dataclass
+import unicodedata
+from dataclasses import asdict, dataclass, replace
 from getpass import getpass
 from pathlib import Path
 from tkinter import messagebox, ttk
 
 from nus import NusDetector
 from ocr import Paddle, Region, Tesseract, align, raster_pages
+from tabular import detect_table
 from privapii import Span, hybrid, review_spans, rules
 from vault import Workspace, new_id
 
@@ -22,6 +24,8 @@ class Review:
     categories: tuple[str, ...] = ()
     action: str = "mask"
     verified: str | None = None
+    cell: tuple[int, int] | None = None
+    merged_anchor: tuple[int, int] | None = None
 
 
 def find_categories(reviews, detector):
@@ -65,30 +69,108 @@ class ScanProcessor:
                 raise ValueError("The source changed during OCR. Import it again.")
         return pages, reviews, digest
 
+    def read_table(self, image, table, detector):
+        from PIL import ImageOps
+
+        reviews, drafts = [], []
+        for row, column, box in table.cells():
+            merged = table.merge_at(row, column)
+            if merged and (row, column) != merged[:2]:
+                reviews.append(Review(table.page, image.size, Region(box, (), (), "merged_continuation"),
+                                      action="continuation", cell=(row, column), merged_anchor=merged[:2]))
+                drafts.append("")
+                continue
+            left, top, right, bottom = box
+            crop = ImageOps.expand(image.crop((left + 3, top + 3, right - 3, bottom - 3)),
+                                   border=8, fill="white")
+
+            def position(readings):
+                placed = []
+                for reading in readings:
+                    x0, y0, x1, y1 = reading.box
+                    translated = (max(left, left + x0 - 5), max(top, top + y0 - 5),
+                                  min(right, left + x1 - 5), min(bottom, top + y1 - 5))
+                    if translated[0] < translated[2] and translated[1] < translated[3]:
+                        placed.append(replace(reading, box=translated))
+                return tuple(placed)
+
+            primary = position(self.paddle.read(crop))
+            alternate = position(self.tesseract.read(crop, single_cell=True))
+            draft = " ".join(" ".join(item.text.split()) for item in primary)
+            other = " ".join(" ".join(item.text.split()) for item in alternate)
+            if primary and alternate:
+                agreed = unicodedata.normalize("NFC", draft) == unicodedata.normalize("NFC", other)
+                status = "cross_checked" if agreed else "unresolved"
+            else:
+                status = "machine_read" if primary or alternate else "unresolved"
+            labels = {span.label for span in rules(other)}
+            reviews.append(Review(table.page, image.size, Region(box, primary, alternate, status),
+                                  tuple(sorted(labels)), cell=(row, column)))
+            drafts.append(draft or other)
+
+        width = table.shape[1]
+        text = "\n".join("\t".join(drafts[i:i + width]) for i in range(0, len(drafts), width))
+        candidates = detect_table(text, lambda cell: review_spans(cell, hybrid(cell, detector(cell))))
+        offset = 0
+        for item, draft in zip(reviews, drafts):
+            detected = {span.label for span in candidates if span.start < offset + len(draft) and span.end > offset}
+            item.categories = tuple(sorted(detected | set(item.categories)))
+            offset += len(draft) + 1
+        return reviews
+
 
 def export_review(workspace, source, source_digest, dpi, reviews):
     parts, approved, offset = [], [], 0
-    for item in reviews:
+    table = bool(reviews and reviews[0].cell is not None)
+    if any((item.cell is not None) != table for item in reviews):
+        raise ValueError("Cell review and line review must be exported separately.")
+    if table:
+        height = max(item.cell[0] for item in reviews) + 1
+        width = max(item.cell[1] for item in reviews) + 1
+        expected = [(row, column) for row in range(height) for column in range(width)]
+        if ([item.cell for item in reviews] != expected or min(height, width) < 2
+                or len({item.page for item in reviews}) != 1):
+            raise ValueError("The reviewed cells do not form a complete table.")
+        by_cell = {item.cell: item for item in reviews}
+        for item in reviews:
+            if (item.action == "continuation") != (item.merged_anchor is not None):
+                raise ValueError("A merged continuation must point to its reviewed anchor.")
+            if item.merged_anchor is not None:
+                anchor = by_cell.get(item.merged_anchor)
+                x0, y0, x1, y1 = item.region.box
+                if (anchor is None or anchor.merged_anchor is not None
+                        or not (anchor.region.box[0] <= x0 and anchor.region.box[1] <= y0
+                                and anchor.region.box[2] >= x1 and anchor.region.box[3] >= y1)):
+                    raise ValueError("A merged cell is outside the area covered by its anchor.")
+    for index, item in enumerate(reviews):
         line = "[REDACTED]"
         if item.action in {"keep", "protect"}:
-            if not item.verified or not item.verified.strip() or "\n" in item.verified or "\r" in item.verified:
+            if (not item.verified or not item.verified.strip()
+                    or any(char in item.verified for char in "\n\r")
+                    or (table and "\t" in item.verified)):
                 raise ValueError("A kept or restorable region needs a verified single-line transcription.")
             line = item.verified
             if item.action == "protect":
                 label = item.categories[0] if len(item.categories) == 1 else "MANUAL"
                 approved.append(Span(offset, offset + len(line), label, "ocr-human-verified"))
+        elif item.action in {"empty", "continuation"} and table:
+            line = ""
         elif item.action != "mask":
             raise ValueError("Unknown OCR review action.")
         parts.append(line)
-        offset += len(line) + 1
+        offset += len(line)
+        if index + 1 < len(reviews):
+            parts.append("\t" if table and reviews[index + 1].cell[0] == item.cell[0] else "\n")
+            offset += 1
     document_id = new_id()
-    workspace.review(document_id, source.name, "\n".join(parts), approved)
+    name = f"{source.stem}_p{reviews[0].page}_table.tsv" if table else source.name
+    workspace.review(document_id, name, "".join(parts), approved)
     document = workspace.documents[document_id]
     document["ocr"] = {"source_sha256": source_digest, "dpi": dpi, "regions": []}
     occurrences = iter(document["occurrences"])
     for item in reviews:
         record = asdict(item)
-        record["verification_status"] = "human_verified" if item.verified and item.action != "mask" else item.region.status
+        record["verification_status"] = item.region.status if item.action in {"mask", "continuation"} else "human_verified"
         if item.action == "protect":
             occurrence = next(occurrences)
             record.update(occurrence_id=occurrence["id"], entity_id=occurrence["entity"])
@@ -118,6 +200,7 @@ class Reviewer:
         bar.pack()
         for caption, action in (
             ("Previous", lambda: self.move(-1)), ("Mask", lambda: self.decide("mask")),
+            *((("Keep empty", lambda: self.decide("empty")),) if reviews[0].cell is not None else ()),
             ("Keep verified", lambda: self.decide("keep")),
             ("Pseudonymize verified", lambda: self.decide("protect")),
             ("Next", lambda: self.move(1)), ("Finish", self.finish),
@@ -132,17 +215,22 @@ class Reviewer:
         region = item.region
         page = self.pages[item.page]
         left, top, right, bottom = region.box
-        image = page.crop((max(0, left - 12), max(0, top - 12),
-                           min(page.width, right + 12), min(page.height, bottom + 12)))
+        margin = 0 if item.cell is not None else 12
+        image = page.crop((max(0, left - margin), max(0, top - margin),
+                           min(page.width, right + margin), min(page.height, bottom + margin)))
         image.thumbnail((900, 400))
         self.photo = ImageTk.PhotoImage(image)
         self.crop.configure(image=self.photo)
         primary = " / ".join(reading.text for reading in region.primary) or "—"
         alternative = " / ".join(reading.text for reading in region.alternative) or "—"
         labels = ", ".join(item.categories) or "—"
+        position = f" · row {item.cell[0] + 1}, column {item.cell[1] + 1}" if item.cell is not None else ""
+        if item.merged_anchor is not None:
+            row, column = item.merged_anchor
+            position += f" · continues row {row + 1}, column {column + 1}"
         self.details.set(
             f"Region {self.index + 1}/{len(self.reviews)} · page {item.page} · {region.status} · {item.action}\n"
-            f"PP-OCRv6: {primary}\nTesseract: {alternative}\nPossible categories: {labels}"
+            f"PP-OCRv6: {primary}\nTesseract: {alternative}\nPossible categories: {labels}{position}"
         )
         self.value.set(item.verified or "")
         self.entry.focus_set()
@@ -153,11 +241,14 @@ class Reviewer:
 
     def decide(self, action):
         value = self.value.get()
-        if action != "mask" and not value.strip():
+        item = self.reviews[self.index]
+        if item.merged_anchor is not None:
+            messagebox.showinfo("Merged cell", "Review the merged region from its top-left cell.")
+            return
+        if action in {"keep", "protect"} and not value.strip():
             messagebox.showerror("Transcription required", "Enter the value verified against the image.")
             return
-        item = self.reviews[self.index]
-        item.action, item.verified = action, value if action != "mask" else None
+        item.action, item.verified = action, value if action in {"keep", "protect"} else None
         self.move(1)
 
     def finish(self):
