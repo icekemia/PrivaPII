@@ -8,6 +8,7 @@ from dataclasses import replace
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
+from export_formats import TEXT_FORMATS, render_export
 from ingestion import extract
 from nus import NusDetector, checkpoint_ready
 from ocr_review import Reviewer, ScanProcessor, export_review
@@ -419,7 +420,8 @@ class App:
                     return
                 output = export_review(workspace, source, digest, 250, reviews)
                 self.load_document(next(reversed(workspace.documents)))
-                self.preview_scan_export(output, pages, reviews)
+                self.preview_text_export(output, source.name,
+                                         pdf_review=lambda parent: self.preview_pdf(parent, pages, reviews))
                 self.status.set("OCR review saved to the encrypted workspace.")
             except Exception as error:
                 self.status.set("OCR review failed.")
@@ -434,31 +436,53 @@ class App:
             self.detector = NusDetector(self.model_dir)
         return self.scan_processor.read(source, 250, self.detector)
 
-    def preview_scan_export(self, output, pages, reviews):
+    def preview_text_export(self, output, source_name, pdf_review=None):
         window = tk.Toplevel(self.root)
-        window.title("Reviewed scan export")
+        window.title("Review document export")
         window.transient(self.root)
         window.geometry("820x540")
-        preview = self.text(window, "Reviewed TXT · inspect before sharing", 16, readonly=True)
-        self.replace(preview, output)
+        options = ttk.Frame(window, padding=8)
+        options.pack(fill="x")
+        ttk.Label(options, text="Format").pack(side="left", padx=(0, 8))
+        default = "Markdown" if Path(source_name).suffix.lower() in {".md", ".markdown"} else "TXT"
+        format_name = tk.StringVar(value=default)
+        selector = ttk.Combobox(options, textvariable=format_name, values=list(TEXT_FORMATS),
+                                state="readonly", width=14)
+        selector.pack(side="left")
+        preview = self.text(window, "Exact file contents · review before sharing", 16, readonly=True)
+
+        def refresh(_event=None):
+            self.replace(preview, render_export(output, format_name.get(), source_name))
+
+        selector.bind("<<ComboboxSelected>>", refresh)
+        refresh()
         bar = ttk.Frame(window, padding=8)
         bar.pack(fill="x")
 
         def save():
-            path = filedialog.asksaveasfilename(parent=window, defaultextension=".txt",
-                                               filetypes=[("Text", "*.txt")])
+            kind = format_name.get()
+            extension = TEXT_FORMATS[kind]
+            path = filedialog.asksaveasfilename(parent=window, defaultextension=extension,
+                                               initialfile=Path(source_name).stem + "_reviewed" + extension,
+                                               filetypes=[(kind, "*" + extension)])
             if not path:
+                return
+            if Path(path).suffix.lower() != extension:
+                messagebox.showerror("Choose a matching extension", f"Use {extension} for this format.",
+                                     parent=window)
                 return
             try:
                 with Path(path).open("x", encoding="utf-8", newline="") as stream:
-                    stream.write(output)
-            except OSError as error:
+                    stream.write(self.value(preview))
+            except (OSError, UnicodeError) as error:
                 messagebox.showerror("Save failed", str(error), parent=window)
                 return
+            self.status.set(f"Reviewed {kind} export saved.")
             window.destroy()
 
-        self.button(bar, "Save new TXT", save)
-        self.button(bar, "Review PDF masks", lambda: self.preview_pdf(window, pages, reviews))
+        self.button(bar, "Save reviewed file", save)
+        if pdf_review is not None:
+            self.button(bar, "Review PDF masks", lambda: pdf_review(window))
         self.button(bar, "Close preview", window.destroy)
         window.grab_set()
         self.root.wait_window(window)
@@ -616,15 +640,7 @@ class App:
         if self.export_review != (self.value(self.source), selection):
             self.status.set("Source or findings changed. Generate a current export first.")
             return
-        if not messagebox.askyesno("Confirm export", "Have you reviewed this exact export for residual personal data?"):
-            return
-        path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text", "*.txt")])
-        if path:
-            try:
-                Path(path).write_text(text, encoding="utf-8")
-                self.status.set("Reviewed export saved.")
-            except (OSError, UnicodeError) as error:
-                messagebox.showerror("Save failed", str(error))
+        self.preview_text_export(text, self.document_name)
 
     def restore(self):
         self.replace(self.restored, "")
