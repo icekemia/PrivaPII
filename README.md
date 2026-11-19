@@ -31,7 +31,9 @@ Pseudonymized output uses typed references such as `[PRIVAPII_V2_PER_…]` with 
 
 **Save reviewed export** offers UTF-8 TXT and Markdown. Choose the format and inspect the exact file contents before saving. Markdown documents retain their source markup. For extracted text, Markdown adds recognized Lithuanian section headings and preserves explicit clause numbers as literal labels to prevent renderer renumbering. The formatter preserves token strings and does not reconstruct source PDF tables or complex layouts.
 
-**CSV** is also available when both the source and the protected output contain one complete rectangular Markdown pipe table or one tab-separated table. The preview checks row and column counts and token order. The Markdown table must have an explicit header separator and simple cells. Tables embedded in prose and inferred PDF or OCR column layouts are outside this export mode.
+**CSV** is also available when both the source and the protected output contain one complete rectangular Markdown pipe table or one tab-separated table. The preview checks row and column counts and token order. The Markdown table must have an explicit header separator and simple cells.
+
+Use **PDF table** to extract a table from a digital PDF with visible ruling lines and a native text layer. Select a page and table, inspect the grid, then import it as a separate TSV document. The import normalizes whitespace within cells. Detection runs cell by cell. Under the Standard profile, an explicit birth-date column such as `Gimimo data` is protected, while ordinary dates in columns such as `Išdavimo data` remain visible. Check row and column alignment against the PDF before exporting. Scans, borderless tables and merged cells require a different extraction path.
 
 Import a single derived CSV in **Restore derived text** to select CSV mode. PrivaPII restores values by cell and serializes the table with quoting. Inspect the restored preview and use **Save restored CSV** to create a local file containing the original values.
 
