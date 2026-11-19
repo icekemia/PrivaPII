@@ -10,7 +10,7 @@ From the project folder on Windows with Python 3.11 and Tk installed:
 python app.py
 ```
 
-The standard-library mode detects Lithuanian phone formats, checksum-valid personal codes and Lithuanian IBANs, and email addresses. A reviewer can mark additional spans. In hybrid mode, the same rules augment the local NUS checkpoint.
+The standard-library mode detects Lithuanian phone formats, checksum-valid personal codes and Lithuanian IBANs, and email addresses. A reviewer can mark additional spans. With a complete local checkpoint, use the mode selector to compare **NUS only** with **NUS + rules** on the same text.
 
 1. Paste or open a UTF-8 TXT or Markdown document. Select **Detect**, inspect the highlighted findings and mark any missed spans by selecting text and choosing **Mark selected text**.
 2. Select the findings to transform. Choose **Pseudonymize** for reversible references or **Redact** to remove the selected text from the export. Inspect the exact preview before saving or copying it.

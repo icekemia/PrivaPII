@@ -36,8 +36,9 @@ class App:
         self.button(bar, "Open TXT / Markdown", self.open_source)
         self.button(bar, "Mark selected text", self.mark)
         self.button(bar, "New case", self.new_case)
-        self.use_nus = tk.BooleanVar(value=checkpoint_ready(model_dir))
-        ttk.Checkbutton(bar, text="Use local NUS checkpoint", variable=self.use_nus).pack(side="right")
+        modes = ("Rules only", "NUS only", "NUS + rules") if checkpoint_ready(model_dir) else ("Rules only",)
+        self.mode = tk.StringVar(value=modes[-1])
+        ttk.Combobox(bar, textvariable=self.mode, values=modes, width=14, state="readonly").pack(side="right")
         panes = ttk.Panedwindow(review, orient="horizontal")
         panes.pack(fill="both", expand=True, pady=8)
         left, right = ttk.Frame(panes), ttk.Frame(panes)
@@ -106,10 +107,10 @@ class App:
         text = self.value(self.source)
         if not text.strip():
             return
-        use_nus = self.use_nus.get()
+        mode = self.mode.get()
         self.detect_button.state(["disabled"])
         self.status.set("Detecting on this device…")
-        future = self.worker.submit(self.compute, text, use_nus)
+        future = self.worker.submit(self.compute, text, mode)
 
         def poll():
             if not future.done():
@@ -127,14 +128,17 @@ class App:
                 return
             self.snapshot = text
             self.show_findings(spans, text)
-            self.status.set(f"{len(spans)} findings. Inspect the source for omissions.")
+            self.status.set(f"{mode}: {len(spans)} findings. Inspect the source for omissions.")
 
         self.root.after(100, poll)
 
-    def compute(self, text, use_nus):
-        if use_nus and self.detector is None:
+    def compute(self, text, mode):
+        if mode == "Rules only":
+            return hybrid(text)
+        if self.detector is None:
             self.detector = NusDetector(self.model_dir)
-        return hybrid(text, self.detector(text) if use_nus else ())
+        baseline = self.detector(text)
+        return baseline if mode == "NUS only" else hybrid(text, baseline)
 
     def show_findings(self, spans, text):
         self.spans = spans
