@@ -1,0 +1,14 @@
+{
+  "documents": [
+    "[[PER|Austėja Varnaitė]] pateikė prašymą. Prašymą perdavėme [[PER|Gabrieliui Šalnai]].",
+    "Laišką [[PER|Austėjai Varnaitei]] siųskite adresu [[EMAIL|austeja.demo@example.org]].",
+    "Kontaktinis asmuo – [[PER|Jonas Beržas]], tel. [[NUM_PHONE|+370 612 34567]].",
+    "Prašymą pasirašė [[PER|E. Žiedaitė]]; apie [[PER|Jono Beržo]] prašymą pranešta atskirai.",
+    "PVM mokėtojo kodas: [[PVM|LT 100001919017]]. Įmonės kodas: [[COMPANY_ID|123456786]].",
+    "Pranešimas skirtas [[PER|Rūtai Mintytei]]. Patvirtinimą siųskite adresu [[EMAIL|ruta.fixture@example.net]].",
+    "Liudytojai: [[PER|Tadas Žiogas]] ir [[PER|Aistė Debesytė]]. Su [[PER|Aiste Debesyte]] kalbėta telefonu [[NUM_PHONE|+370 699 00000]].",
+    "Pristatymo vieta: [[LOC|Vilnius]]. Dėl sutarties kreipkitės į [[ORG|VšĮ Kalbų Dirbtuvės]].",
+    "The contact is [[PER|Mantas Upėnas]]. Jeigu reikia patikslinti, skambinkite [[NUM_PHONE|00370 644 12345]].",
+    "Ataskaitoje minimi keli pavyzdžiai. Netinkamas PVM numeris LT100001919018 pateiktas kaip neigiamas pavyzdys."
+  ]
+}

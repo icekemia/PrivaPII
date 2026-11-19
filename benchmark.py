@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -10,6 +11,24 @@ from time import perf_counter
 
 from nus import NusDetector
 from privapii import Span, hybrid
+
+ANNOTATION = re.compile(r"\[\[([A-Z_]+)\|([^\]]+)\]\]")
+
+
+def development_rows(path):
+    fixture = json.loads(path.read_text(encoding="utf-8"))
+    for annotated in fixture["documents"]:
+        parts, labels, cursor, offset = [], [], 0, 0
+        for match in ANNOTATION.finditer(annotated):
+            plain = annotated[cursor:match.start()]
+            label, value = match.groups()
+            offset += len(plain)
+            labels.append({"start": offset, "end": offset + len(value), "label": label})
+            parts.extend((plain, value))
+            offset += len(value)
+            cursor = match.end()
+        parts.append(annotated[cursor:])
+        yield {"text": "".join(parts), "label": labels}
 
 
 def score(stats, gold, predictions):
@@ -79,16 +98,26 @@ def main():
     parser.add_argument("--model", type=Path, default=Path("models/nus"))
     parser.add_argument("--limit", type=int)
     parser.add_argument("--rules-only", action="store_true")
+    parser.add_argument("--development", type=Path, help="Read a synthetic annotated JSON fixture.")
+    parser.add_argument("--compare-boundaries", action="store_true", help="Compare NUS decoders on development data.")
     args = parser.parse_args()
     if args.limit is not None and args.limit <= 0:
         parser.error("--limit must be positive")
-    rows = pq.read_table(args.data, columns=["text", "label"]).to_pylist()[:args.limit]
+    if args.compare_boundaries and (not args.development or args.rules_only):
+        parser.error("--compare-boundaries requires --development and NUS inference")
+    dataset = args.development or args.data
+    if args.development:
+        rows = list(development_rows(dataset))[:args.limit]
+    else:
+        rows = pq.read_table(dataset, columns=["text", "label"]).to_pylist()[:args.limit]
     if not rows:
         parser.error("Evaluation split is empty")
     load_started = perf_counter()
     detect = None if args.rules_only else NusDetector(args.model)
     load_seconds = perf_counter() - load_started
     modes = ("rules",) if args.rules_only else ("nus", "hybrid")
+    if args.compare_boundaries:
+        modes += ("nus_centered", "hybrid_centered")
     labels = {item["label"] for row in rows for item in row["label"]}
     metrics = {
         mode: {label: Counter() for label in sorted(labels)} for mode in modes
@@ -96,6 +125,7 @@ def main():
     leaks = Counter()
     added_without_gold_labels = Counter()
     nus_seconds = rules_seconds = 0
+    centered_seconds = 0
     started = perf_counter()
     for index, row in enumerate(rows, 1):
         text = row["text"]
@@ -110,6 +140,11 @@ def main():
             if span.label not in labels:
                 added_without_gold_labels[span.label] += 1
         predictions_by_mode = {"nus": baseline, "hybrid": enriched, "rules": enriched}
+        if args.compare_boundaries:
+            before = perf_counter()
+            centered = detect.centered(text)
+            centered_seconds += perf_counter() - before
+            predictions_by_mode.update(nus_centered=centered, hybrid_centered=hybrid(text, centered))
         for mode in modes:
             predictions = predictions_by_mode[mode]
             leaks[mode] += score(metrics[mode], gold, [s for s in predictions if s.label in labels])
@@ -122,11 +157,13 @@ def main():
             counts.update(category)
         micro[mode] = summarize(counts)
     print(json.dumps({
-        "dataset_sha256": hashlib.sha256(args.data.read_bytes()).hexdigest(),
+        "dataset_sha256": hashlib.sha256(dataset.read_bytes()).hexdigest(),
+        "split": "synthetic_development" if args.development else "parquet",
         "documents": len(rows),
         "seconds": round(perf_counter() - started, 1),
         "model_load_seconds": round(load_seconds, 3),
         "nus_inference_seconds": round(nus_seconds, 3),
+        "centered_inference_seconds": round(centered_seconds, 3) if args.compare_boundaries else None,
         "hybrid_rule_and_fusion_seconds": round(rules_seconds, 3),
         "process_peak_rss_bytes": process_peak_rss(),
         "documents_with_uncovered_gold": leaks,
