@@ -33,7 +33,9 @@ Pseudonymized output uses typed references such as `[PRIVAPII_V2_PER_…]` with 
 
 **CSV** is also available when both the source and the protected output contain one complete rectangular Markdown pipe table or one tab-separated table. The preview checks row and column counts and token order. The Markdown table must have an explicit header separator and simple cells.
 
-Use **PDF table** to extract a table from a digital PDF with visible ruling lines and a native text layer. Select a page and table, inspect the grid, then import it as a separate TSV document. The import normalizes whitespace within cells. Detection runs cell by cell. Under the Standard profile, an explicit birth-date column such as `Gimimo data` is protected, while ordinary dates in columns such as `Išdavimo data` remain visible. Check row and column alignment against the PDF before exporting. Scans, borderless tables and merged cells require a different extraction path.
+Use **PDF table** to extract a table from a digital PDF with visible ruling lines and a native text layer. Select a page and table, inspect the grid, then import it as a separate TSV document. The import normalizes whitespace within cells. Detection runs cell by cell. Under the Standard profile, an explicit birth-date column such as `Gimimo data` is protected, while ordinary dates in columns such as `Išdavimo data` remain visible.
+
+Use **Review scan → Table cells** for scans, images, borderless tables and tables with merged cells. Confirm a proposed grid or draw row and column guides. Declare merged areas on the reviewed grid. The two local OCR engines read each cell and show their transcriptions alongside the original crop. After review, export reversible CSV or review the masks for an irreversible PDF. Each import covers one table on one page. [Scanned table instructions](docs/OCR.md#review-and-export-a-scanned-table)
 
 Import a single derived CSV in **Restore derived text** to select CSV mode. PrivaPII restores values by cell and serializes the table with quoting. Inspect the restored preview and use **Save restored CSV** to create a local file containing the original values.
 
