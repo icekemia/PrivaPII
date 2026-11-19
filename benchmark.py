@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import sys
 from collections import Counter
 from pathlib import Path
 from time import perf_counter
@@ -54,7 +55,7 @@ def main():
     leaks = Counter()
     added_without_gold_labels = Counter()
     started = perf_counter()
-    for row in rows:
+    for index, row in enumerate(rows, 1):
         text = row["text"]
         gold = {Span(item["start"], item["end"], item["label"]) for item in row["label"]}
         baseline = detect(text) if detect is not None else []
@@ -66,6 +67,8 @@ def main():
         for mode in modes:
             predictions = predictions_by_mode[mode]
             leaks[mode] += score(metrics[mode], gold, [s for s in predictions if s.label in labels])
+        if index % 10 == 0 or index == len(rows):
+            print(f"Scored {index}/{len(rows)} documents", file=sys.stderr, flush=True)
     for mode in modes:
         for counts in metrics[mode].values():
             for key in ("gold", "exact", "uncovered", "predicted"):
