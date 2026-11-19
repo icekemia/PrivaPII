@@ -14,14 +14,14 @@ python -m venv .venv
 
 Rules mode detects Lithuanian phone formats, email addresses and checksum-valid personal, company, VAT and Lithuanian IBAN identifiers. Company-code detection requires a matching Lithuanian field label, and VAT detection requires the LT prefix. A reviewer can mark additional spans. With the evaluation dependencies and a complete local checkpoint, the default **NUS + rules** mode combines both detectors. Use **NUS only** to compare on the same text.
 
-1. Select **Create workspace** and save the vault under the ignored `vault/` directory or outside the repository. Choose a passphrase. Use **Import document** to open TXT, TSV, Markdown or text-based PDF files, or paste text into a new document.
+1. Select **Create workspace** and save the vault under the ignored `vault/` directory or outside the repository. Choose a passphrase. Use **Import document** to open TXT, TSV, Markdown, DOCX or text-based PDF files, or paste text into a new document.
 2. Select **Detect** and review the highlighted findings. Mark missed spans, correct categories, and link mentions of the same entity explicitly if appropriate. Use **Categories and profiles** to select groups or individual categories and save a named profile. Use **Toggle exclusion** to retain specific occurrences. Policy changes use the current findings without running NUS again.
 3. Choose **Pseudonymize** for reversible references. **Redact irreversibly** is available for permanent text removal in the output. Inspect the exact preview for residual identifiers before saving or copying it.
 4. Review and export another document in the same workspace. Combine or reorder the pseudonymized passages and paste them into **Restore derived text**, or import derived TXT or Markdown files. You can lock the workspace or close PrivaPII, then reopen the workspace with its passphrase and restore the same references. Review the attribution and Lithuanian grammar before reusing the restored text.
 
 The workspace stores an authenticated AES-GCM snapshot in SQLite. The passphrase derives the key locally with scrypt. If the passphrase is lost, the workspace cannot be recovered. Temporary mode keeps references in memory only. Linking is manual and scoped to the workspace. Confirmed identical surface forms can reuse a token, while different inflections have distinct tokens tied to the same entity. Previously generated references remain valid for their original surface forms after regrouping. Workspace files contain encrypted originals even when an output is redacted. Pseudonymized exports can retain identifying context.
 
-**Import document** extracts the native PDF text layer and reports empty pages. Choose **Review scan** in an unlocked workspace to process scanned PDFs, raster images and mixed pages with [local OCR](docs/OCR.md). That workflow offers a reversible plain-text export and an optional irreversible, image-only PDF with reviewed pixel masks. Word import, automatic identity resolution and passphrase recovery remain outside this milestone.
+**Import document** extracts the native PDF text layer and reports empty pages. Choose **Review scan** in an unlocked workspace to process scanned PDFs, raster images and mixed pages with [local OCR](docs/OCR.md). That workflow offers reversible text exports and an optional irreversible, image-only PDF with reviewed pixel masks. Automatic identity resolution and passphrase recovery remain outside this milestone.
 
 NUS finding scores describe model confidence and have not been calibrated as probabilities of correctness. Rule findings report the format or checksum check performed. Review the extraction and the selected findings for omissions before exporting.
 
@@ -33,11 +33,17 @@ Pseudonymized output uses typed references such as `[PRIVAPII_V2_PER_…]` with 
 
 **CSV** is also available when both the source and the protected output contain one complete rectangular Markdown pipe table or one tab-separated table. The preview checks row and column counts and token order. The Markdown table must have an explicit header separator and simple cells.
 
-Use **PDF table** to extract a table from a digital PDF with visible ruling lines and a native text layer. Select a page and table, inspect the grid, then import it as a separate TSV document. The import normalizes whitespace within cells. Detection runs cell by cell. Under the Standard profile, an explicit birth-date column such as `Gimimo data` is protected, while ordinary dates in columns such as `Išdavimo data` remain visible.
+Use **Import table → Digital PDF** or **Import table → Word document** to extract a complete rectangular table. Select the table, inspect the grid, then import it as a separate TSV document. Native PDF tables need visible ruling lines and a text layer. The import normalizes whitespace within cells. Detection runs cell by cell. Under the Standard profile, an explicit birth-date column such as `Gimimo data` is protected, while ordinary dates in columns such as `Išdavimo data` remain visible.
 
 Use **Review scan → Table cells** for scans, images, borderless tables and tables with merged cells. Confirm a proposed grid or draw row and column guides. Declare merged areas on the reviewed grid. The two local OCR engines read each cell and show their transcriptions alongside the original crop. After review, export reversible CSV or review the masks for an irreversible PDF. Each import covers one table on one page. [Scanned table instructions](docs/OCR.md#review-and-export-a-scanned-table)
 
-Import a single derived CSV in **Restore derived text** to select CSV mode. PrivaPII restores values by cell and serializes the table with quoting. Inspect the restored preview and use **Save restored CSV** to create a local file containing the original values.
+Import a single derived CSV in **Restore derived text** to select CSV mode. PrivaPII restores values by cell and serializes the table with quoting. Inspect the restored preview and use **Save restored file** to create a local file containing the original values.
+
+### Word documents
+
+DOCX import covers visible body paragraphs, table text, common decimal numbering and bullets, including numbering inherited through paragraph styles. Original formatting, headers, footers, comments, images and other package content are outside this import scope. Use **Import table → Word document** to keep a complete rectangular table as a separate CSV-compatible document.
+
+Choose **Word** in the export preview to build a fresh `.docx` from reviewed text. A verified tabular export becomes a Word table. Export builds a new package from the preview, with document content and the required package relationships. To restore a returned DOCX, import it in **Restore derived text** and choose **Save restored file**. The restored DOCX contains original values and is written locally.
 
 ### Linked person forms
 
