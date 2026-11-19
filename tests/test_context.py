@@ -53,6 +53,42 @@ class ContextTests(unittest.TestCase):
         self.assertIn("\n1. Sąlyga", output)
         self.assertNotIn("AB-123", output)
 
+    def test_written_document_date_survives_split_automatic_findings(self):
+        text = "Nr. AB-12\n2026 m. lapkričio mėn. 16 d.\nSąlygos"
+        year = text.index("2026")
+        spans = [Span(4, year + 4, "ID_MISC", "nus"),
+                 Span(year + 5, text.index("\nSąlygos"), "DATE", "nus")]
+        reviewed = review_spans(text, spans)
+        selected = selected_indices(reviewed, PROFILES["Standard"], set())
+        output = Case().transform(text, [reviewed[index] for index in selected])
+        self.assertIn("\n2026 m. lapkričio mėn. 16 d.", output)
+        self.assertNotIn("AB-12", output)
+
+    def test_single_surname_span_expands_to_the_adjacent_given_name(self):
+        text = "Kontaktas: Austėja Varnaitė, prašymas."
+        start = text.index("Varnaitė")
+        reviewed = review_spans(text, [Span(start, start + len("Varnaitė,"), "PER", "nus")])
+        self.assertEqual(text[reviewed[0].start:reviewed[0].end], "Austėja Varnaitė")
+        case = Case()
+        output = case.transform(text, reviewed)
+        self.assertNotIn("Austėja", output)
+        self.assertNotIn("Varnaitė", output)
+        self.assertIn(", prašymas.", output)
+        self.assertEqual(case.restore(output), (text, 1))
+
+    def test_name_expansion_preserves_an_independently_detected_location(self):
+        text = "Vilnius Austėja"
+        location, person = Span(0, 7, "LOC", "nus"), Span(8, len(text), "PER", "nus")
+        self.assertEqual(review_spans(text, [location, person]), [location, person])
+
+    def test_split_date_label_does_not_hide_given_name_from_name_expansion(self):
+        text = "2026 m. lapkričio mėn. 16 d.\nJono Petraičio,"
+        date_span = Span(5, text.index(" Petraičio"), "DATE", "nus")
+        person = Span(text.index("Petraičio"), len(text), "PER", "nus")
+        findings = review_spans(text, [date_span, person])
+        self.assertEqual([text[s.start:s.end] for s in findings],
+                         ["2026 m. lapkričio mėn. 16 d.", "Jono Petraičio"])
+
     def test_typed_token_for_specific_identifier_with_generic_overlap(self):
         case = Case()
         text = "Identifier"

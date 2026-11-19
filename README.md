@@ -25,7 +25,7 @@ The workspace stores an authenticated AES-GCM snapshot in SQLite. The passphrase
 
 NUS finding scores describe model confidence and have not been calibrated as probabilities of correctness. Rule findings report the format or checksum check performed. Review the extraction and the selected findings for omissions before exporting.
 
-The **Standard** profile keeps generic dates, times, durations and quantities available for analysis. Explicit Lithuanian birth-date wording yields a separate protected category. Use **Strict** or a custom profile when dates and quantities in the surrounding context could identify someone. Automatic review preserves recognized list numbering and point references. A reviewer can still mark specific text manually when context calls for protection.
+The **Standard** profile keeps generic dates, times, durations and quantities available for analysis. The review rules recognize complete written Lithuanian dates, including the optional `mėn.` marker, and protect explicit dates of birth as a separate category. Use **Strict** or a custom profile when dates and quantities in the surrounding context could identify someone. Automatic review preserves recognized list numbering and point references. It can extend a single detected name component to an adjacent capitalized word on the same line when other findings do not conflict. Review these suggestions against the source.
 
 Pseudonymized output uses typed references such as `[PRIVAPII_V2_PER_…]` with opaque identifiers. The encrypted workspace stores the exact value and its source. Keep the reference intact when sharing text for analysis or transformation. Previously exported V1 references remain valid in the workspace that created them.
 

@@ -25,8 +25,16 @@ PVM = re.compile(r"(?<!\w)LT[ \t]*(?:[0-9]{12}|[0-9]{9})(?!\w)", re.I)
 COMPANY = re.compile(r"\b(?:įmonės|įstaigos|juridinio asmens|organizacijos)\s+kodas\s*[:=]?\s*([0-9]{9})(?!\w)", re.I)
 TOKEN = re.compile(r"\[PRIVAPII_(?:V1|V2_[A-Z][A-Z0-9_]{0,31})_[0-9A-F]{32}_[0-9A-F]{8}\]")
 TOKEN_START = re.compile(r"(?:\[\s*PRIVAPII\b|\bPRIVAPII[_-])", re.I)
-DATE_VALUE = r"(?:\d{4}[-.]\d{1,2}[-.]\d{1,2}|\d{1,2}[-./]\d{1,2}[-./]\d{4}|\d{4}\s*m\.\s*\S+\s+\d{1,2}\s*d\.)"
+MONTH = r"(?:sausio|vasario|kovo|balandžio|gegužės|birželio|liepos|rugpjūčio|rugsėjo|spalio|lapkričio|gruodžio)"
+WRITTEN_DATE = r"[12]\d{3}\s*m\.\s*" + MONTH + r"\s+(?:mėn\.\s+)?(?:0?[1-9]|[12]\d|3[01])\s*d\.?"
+DATE_VALUE = r"(?:\d{4}[-.]\d{1,2}[-.]\d{1,2}|\d{1,2}[-./]\d{1,2}[-./]\d{4}|" + WRITTEN_DATE + r")"
 DOB = re.compile(r"\b(?:gimimo\s+data|gim\.|gimęs|gimusi)\s*[:=]?\s*(" + DATE_VALUE + r")(?!\d)", re.I)
+WRITTEN_DATE_PATTERN = re.compile(r"\b" + WRITTEN_DATE + r"(?!\w)", re.I)
+NAME_WORD = re.compile(r"[^\W\d_]+(?:[-’'][^\W\d_]+)*")
+PREVIOUS_WORD = re.compile(r"(" + NAME_WORD.pattern + r")[ \t]+$")
+NEXT_WORD = re.compile(r"[ \t]+(" + NAME_WORD.pattern + r")")
+NAME_CONTEXT_WORDS = {"draudėjas", "draudikas", "gavėjas", "mokėtojas", "atstovas", "direktorius",
+                      "adresas", "lietuva", "vilnius", "kaunas", "sutartis", "skyrius"}
 REFERENCE_NUMBER = r"[0-9]{1,3}(?:\.[0-9]{1,3})*"
 STRUCTURAL = (
     re.compile(r"^[ \t]*(" + REFERENCE_NUMBER + r")[.)](?=[ \t]|[^\W\d_]|$)", re.M),
@@ -100,6 +108,12 @@ def review_spans(text, findings):
             structural.append((start, end))
     structural.sort()
     birth_dates = [Span(*match.span(1), "DOB", "context-rule") for match in DOB.finditer(text)]
+    written_dates = [
+        Span(*match.span(), "DATE", "context-rule") for match in WRITTEN_DATE_PATTERN.finditer(text)
+        if not any(birth.start < match.end() and birth.end > match.start() for birth in birth_dates)
+    ]
+    temporal = [(span.start, span.end) for span in birth_dates + written_dates]
+    boundaries = sorted(structural + temporal)
     retained = []
     for span in findings:
         start, end = span.start, span.end
@@ -108,14 +122,14 @@ def review_spans(text, findings):
         while end > start and text[end - 1].isspace():
             end -= 1
         if span.source != "manual" and span.label == "DATE" and any(
-            start < birth.end and end > birth.start for birth in birth_dates
+            start < right and end > left for left, right in temporal
         ):
             continue
         if span.source == "manual" or span.label not in {"VALUE", "ID_MISC", "NUM_CAR", "DATE"}:
             retained.append(span)
             continue
         cursor = span.start
-        for left, right in structural:
+        for left, right in boundaries:
             if right <= cursor or left >= span.end:
                 continue
             if cursor < left:
@@ -125,7 +139,32 @@ def review_spans(text, findings):
             retained.append(span)
         elif cursor < span.end:
             retain_fragment(retained, span, text, cursor, span.end)
-    return sorted(set(retained + birth_dates))
+    reviewed = retained + birth_dates + written_dates
+    return sorted({
+        expand_person(text, span, reviewed) if span.label == "PER" and span.source != "manual" else span
+        for span in reviewed
+    })
+
+
+def expand_person(text, span, findings):
+    words = list(NAME_WORD.finditer(text, span.start, span.end))
+    if len(words) != 1 or not words[0].group().istitle():
+        return span
+    word = words[0]
+    line_start = text.rfind("\n", 0, word.start()) + 1
+    previous = PREVIOUS_WORD.search(text, line_start, word.start())
+    following = NEXT_WORD.match(text, word.end())
+    for neighbour in (previous, following):
+        if not neighbour:
+            continue
+        value = neighbour.group(1)
+        start, end = neighbour.span(1)
+        if (not value.istitle() or len(value) < 2 or value.casefold() in NAME_CONTEXT_WORDS
+                or any(item is not span and item.label != "PER" and item.start < end and item.end > start
+                       for item in findings)):
+            continue
+        return replace(span, start=min(start, word.start()), end=max(end, word.end()))
+    return span
 
 
 def retain_fragment(retained, span, text, start, end):
