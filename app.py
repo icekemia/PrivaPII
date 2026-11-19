@@ -11,6 +11,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 from ingestion import extract
 from nus import NusDetector, checkpoint_ready
 from ocr_review import Reviewer, ScanProcessor, export_review
+from pdf_redaction_view import PdfRedactionView
 from policy import ALL_CATEGORIES, CATEGORY_GROUPS, PROFILES, selected_indices
 from privapii import Case, Span, hybrid, review_spans
 from vault import Workspace, new_id
@@ -418,7 +419,7 @@ class App:
                     return
                 output = export_review(workspace, source, digest, 250, reviews)
                 self.load_document(next(reversed(workspace.documents)))
-                self.preview_scan_export(output)
+                self.preview_scan_export(output, pages, reviews)
                 self.status.set("OCR review saved to the encrypted workspace.")
             except Exception as error:
                 self.status.set("OCR review failed.")
@@ -433,7 +434,7 @@ class App:
             self.detector = NusDetector(self.model_dir)
         return self.scan_processor.read(source, 250, self.detector)
 
-    def preview_scan_export(self, output):
+    def preview_scan_export(self, output, pages, reviews):
         window = tk.Toplevel(self.root)
         window.title("Reviewed scan export")
         window.transient(self.root)
@@ -457,9 +458,17 @@ class App:
             window.destroy()
 
         self.button(bar, "Save new TXT", save)
+        self.button(bar, "Review PDF masks", lambda: self.preview_pdf(window, pages, reviews))
         self.button(bar, "Close preview", window.destroy)
         window.grab_set()
         self.root.wait_window(window)
+
+    def preview_pdf(self, parent, pages, reviews):
+        reviewer = PdfRedactionView(parent, pages, reviews, dpi=250)
+        reviewer.window.grab_set()
+        self.root.wait_window(reviewer.window)
+        if parent.winfo_exists():
+            parent.grab_set()
 
     def compute(self, text, mode):
         if mode == "Rules only":
