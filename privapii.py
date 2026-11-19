@@ -23,7 +23,9 @@ PERSONAL = re.compile(r"(?<!\w)[1-6][0-9]{10}(?!\w)")
 IBAN = re.compile(r"(?<!\w)LT[0-9]{2}(?:[ -]?[0-9]{4}){4}(?!\w)", re.I)
 PVM = re.compile(r"(?<!\w)LT[ \t]*(?:[0-9]{12}|[0-9]{9})(?!\w)", re.I)
 COMPANY = re.compile(r"\b(?:įmonės|įstaigos|juridinio asmens|organizacijos)\s+kodas\s*[:=]?\s*([0-9]{9})(?!\w)", re.I)
-TOKEN = re.compile(r"\[PRIVAPII_(?:V1|V2_[A-Z][A-Z0-9_]{0,31})_[0-9A-F]{32}_[0-9A-F]{8}\]")
+TOKEN = re.compile(
+    r"\[PRIVAPII_(?:V1|V2_[A-Z][A-Z0-9_]{0,31}|V3_PER_[0-9A-F]{32})_[0-9A-F]{32}_[0-9A-F]{8}\]"
+)
 TOKEN_START = re.compile(r"(?:\[\s*PRIVAPII\b|\bPRIVAPII[_-])", re.I)
 MONTH = r"(?:sausio|vasario|kovo|balandžio|gegužės|birželio|liepos|rugpjūčio|rugsėjo|spalio|lapkričio|gruodžio)"
 WRITTEN_DATE = r"[12]\d{3}\s*m\.\s*" + MONTH + r"\s+(?:mėn\.\s+)?(?:0?[1-9]|[12]\d|3[01])\s*d\.?"
@@ -202,13 +204,14 @@ def merged_ranges(text, accepted):
     return ranges
 
 
-def restore_references(text, references):
+def restore_references(text, references, overrides=None):
     matches = list(TOKEN.finditer(text))
     if TOKEN_START.search(TOKEN.sub("", text)):
         raise ValueError("Malformed or truncated PrivaPII token.")
     if any(match.group() not in references for match in matches):
         raise ValueError("Unknown, corrupted or foreign token.")
-    return TOKEN.sub(lambda match: references[match.group()], text), len(matches)
+    by_offset = {matches[index].start(): value for index, value in (overrides or {}).items()}
+    return TOKEN.sub(lambda match: by_offset.get(match.start(), references[match.group()]), text), len(matches)
 
 
 class Case:

@@ -5,10 +5,47 @@ from contextlib import closing
 from pathlib import Path
 
 from privapii import Span
+from export_formats import render_export
 from vault import Workspace
 
 
 class VaultTests(unittest.TestCase):
+    def test_linked_tokens_and_local_occurrence_overrides(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "case.sqlite"
+            password = "linked variant test password"
+            vault = Workspace(path, password, create=True)
+            nominative, genitive = "Jonas Petraitis", "Jono Petraičio"
+            for key, value in (("one", nominative), ("two", genitive), ("homonym", nominative)):
+                vault.review(key, f"{key}.md", value, [Span(0, len(value), "PER")])
+            entity = vault.documents["one"]["occurrences"][0]["entity"]
+            vault.link("two", 0, entity)
+            unlinked = vault.transform("one", [0])
+            self.assertTrue(unlinked.startswith("[PRIVAPII_V2_PER_"))
+            first, second, homonym = (
+                vault.transform(key, [0], link_person_forms=True) for key in ("one", "two", "homonym")
+            )
+            prefix = f"[PRIVAPII_V3_PER_{entity.upper()}_"
+            self.assertTrue(first.startswith(prefix))
+            self.assertTrue(second.startswith(prefix))
+            self.assertFalse(homonym.startswith(prefix))
+            self.assertNotEqual(first, second)
+            self.assertEqual(vault.transform("one", [0], link_person_forms=True), first)
+            reopened = Workspace(path, password)
+            text = render_export(f"**{second}** {first} {first} {homonym}", "Markdown", "source.md")
+            self.assertEqual(reopened.restore(text), (f"**{genitive}** {nominative} {nominative} {nominative}", 4))
+            self.assertEqual(reopened.restore(text, {1: genitive}),
+                             (f"**{genitive}** {genitive} {nominative} {nominative}", 4))
+            self.assertEqual(reopened.forms_by_occurrence(unlinked), {0: (nominative, genitive)})
+            for invalid in ({3: genitive}, {0: "Invented form"}):
+                with self.assertRaises(ValueError):
+                    reopened.restore(text, invalid)
+            with self.assertRaises(ValueError):
+                reopened.restore(text + " [PRIVAPII_V3_PER_")
+            reopened.link("two", 0, reopened.documents["homonym"]["occurrences"][0]["entity"])
+            self.assertEqual(reopened.forms_by_occurrence(text), {})
+            self.assertEqual(reopened.restore(second), (genitive, 1))
+
     def test_linked_forms_homonyms_and_reopen(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "case.sqlite"

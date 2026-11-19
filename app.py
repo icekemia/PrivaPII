@@ -14,7 +14,7 @@ from nus import NusDetector, checkpoint_ready
 from ocr_review import Reviewer, ScanProcessor, export_review
 from pdf_redaction_view import PdfRedactionView
 from policy import ALL_CATEGORIES, CATEGORY_GROUPS, PROFILES, selected_indices
-from privapii import Case, Span, hybrid, review_spans
+from privapii import TOKEN, Case, Span, hybrid, review_spans
 from vault import Workspace, new_id
 
 
@@ -90,6 +90,9 @@ class App:
         self.session_profiles = dict(PROFILES)
         self.snapshot = None
         self.export_review = None
+        self.link_person_forms = tk.BooleanVar(value=False)
+        self.form_source = None
+        self.restore_overrides = {}
         self.spans = []
         self.status = tk.StringVar(value="Open or paste a Lithuanian text document.")
         root.title("PrivaPII · Local review")
@@ -143,12 +146,18 @@ class App:
         self.button(controls, "Pseudonymize", lambda: self.transform(False))
         self.button(controls, "Redact irreversibly", lambda: self.transform(True))
         self.button(controls, "Save reviewed export", self.save_export)
+        self.link_checkbox = ttk.Checkbutton(
+            controls, text="Expose linked person IDs", variable=self.link_person_forms,
+            command=self.clear_export, state="disabled",
+        )
+        self.link_checkbox.pack(side="left", padx=8)
         self.export = self.text(review, "Export preview · review before sharing", 8, readonly=True)
         self.derived = self.text(restore, "Paste the derived text for this case", 12)
         restore_actions = ttk.Frame(restore)
         restore_actions.pack(fill="x")
         self.button(restore_actions, "Import derived text", self.import_derived)
         self.button(restore_actions, "Preview local restoration", self.restore)
+        self.button(restore_actions, "Choose verified person form", self.choose_person_form)
         self.restored = self.text(restore, "Restored preview · contains original values", 12, readonly=True)
         self.derived.bind("<<Modified>>", self.derived_changed)
         ttk.Label(root, textvariable=self.status, padding=(12, 0, 12, 10)).pack(fill="x")
@@ -199,6 +208,8 @@ class App:
     def derived_changed(self, _event):
         if self.derived.edit_modified():
             self.derived.edit_modified(False)
+            self.form_source = None
+            self.restore_overrides.clear()
             self.replace(self.restored, "")
 
     def review_current(self):
@@ -280,6 +291,10 @@ class App:
             messagebox.showerror("Workspace unavailable", str(error))
             return
         self.case = workspace
+        self.link_person_forms.set(False)
+        self.link_checkbox.state(["!disabled"])
+        self.form_source = None
+        self.restore_overrides.clear()
         self.profile_name = workspace.active_profile
         categories = set(workspace.profiles.get(self.profile_name, PROFILES["Standard"]))
         if self.profile_name == "Standard" and categories == ALL_CATEGORIES - {"DOB"}:
@@ -296,6 +311,10 @@ class App:
         if not self.workspace_active() or not self.persist():
             return
         self.case = Case()
+        self.link_person_forms.set(False)
+        self.link_checkbox.state(["disabled"])
+        self.form_source = None
+        self.restore_overrides.clear()
         self.categories = set(PROFILES["Standard"])
         self.profile_name = "Standard"
         self.document_ids = []
@@ -622,7 +641,9 @@ class App:
                 self.review_current()
                 self.case.profiles[self.profile_name] = sorted(self.categories)
                 self.case.active_profile = self.profile_name
-                result = self.case.transform(self.document_id, indices, redact=redact)
+                linked = self.link_person_forms.get() and not redact
+                result = self.case.transform(self.document_id, indices, redact=redact,
+                                             link_person_forms=linked)
                 self.refresh_documents()
             else:
                 result = self.case.transform(text, selected, redact=redact)
@@ -644,8 +665,15 @@ class App:
 
     def restore(self):
         self.replace(self.restored, "")
+        text = self.value(self.derived)
+        if self.form_source != text:
+            self.restore_overrides.clear()
+        self.form_source = text
         try:
-            restored, count = self.case.restore(self.value(self.derived))
+            if self.workspace_active():
+                restored, count = self.case.restore(text, self.restore_overrides)
+            else:
+                restored, count = self.case.restore(text)
             self.derived.edit_modified(False)
             if count:
                 self.replace(self.restored, restored)
@@ -653,6 +681,45 @@ class App:
         except ValueError as error:
             self.status.set("Restoration blocked.")
             messagebox.showerror("Restoration blocked", str(error))
+
+    def choose_person_form(self):
+        if not self.workspace_active():
+            self.status.set("Open the original workspace to choose a verified form.")
+            return
+        text = self.value(self.derived)
+        try:
+            choices = self.case.forms_by_occurrence(text)
+        except ValueError as error:
+            messagebox.showerror("Restoration blocked", str(error), parent=self.root)
+            return
+        if not choices:
+            self.status.set("No linked alternate person forms are available in this text.")
+            return
+        if self.form_source != text:
+            self.restore_overrides.clear()
+        self.form_source = text
+        self.derived.edit_modified(False)
+        labels = []
+        for index, match in enumerate(TOKEN.finditer(text)):
+            if index not in choices:
+                continue
+            left = TOKEN.sub("…", text[max(0, match.start() - 32):match.start()])
+            right = TOKEN.sub("…", text[match.end():match.end() + 32])
+            value = self.restore_overrides.get(index, choices[index][0])
+            labels.append(" ".join(f"{index + 1} · {left} ‹{value}› {right}".split()))
+        position = ChoiceDialog(self.root, "Choose an occurrence in the derived text", labels).result
+        if position is None:
+            return
+        index = list(choices)[position]
+        forms = choices[index]
+        selection = ChoiceDialog(self.root, "Choose an attested person form",
+                                 [forms[0] + " (original)", *forms[1:]]).result
+        if selection is not None:
+            if selection == 0:
+                self.restore_overrides.pop(index, None)
+            else:
+                self.restore_overrides[index] = forms[selection]
+            self.restore()
 
     def import_derived(self):
         paths = filedialog.askopenfilenames(filetypes=[("Text and Markdown", "*.txt *.md *.markdown")])

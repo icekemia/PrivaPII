@@ -11,7 +11,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
-from privapii import Span, canonical_token, merged_ranges, restore_references, token_prefix
+from privapii import TOKEN, Span, canonical_token, merged_ranges, restore_references, token_prefix
 
 
 def new_id():
@@ -120,7 +120,7 @@ class Workspace:
                     result.setdefault(item["entity"], f'{value} · {document["name"]}')
         return result
 
-    def transform(self, document_id, selected, *, redact=False):
+    def transform(self, document_id, selected, *, redact=False, link_person_forms=False):
         document = self.documents[document_id]
         text = document["text"]
         items = [document["occurrences"][index] for index in selected]
@@ -139,6 +139,9 @@ class Workspace:
                 value = text[start:end]
                 key = [entity, value] if entity else [document_id, provenance, value]
                 prefix = token_prefix(spans, start, end)
+                if (link_person_forms and entity and prefix == "PRIVAPII_V2_PER_"
+                        and all(item["entity"] == entity for item in items if item["id"] in provenance)):
+                    prefix = f"PRIVAPII_V3_PER_{entity.upper()}_"
                 for binding, record in (self.references | pending).items():
                     if binding.startswith("[" + prefix) and record["key"] == key:
                         token = binding
@@ -163,5 +166,42 @@ class Workspace:
             raise
         return "".join(parts)
 
-    def restore(self, text):
-        return restore_references(text, {token: item["value"] for token, item in self.references.items()})
+    def current_person_entity(self, record):
+        key = record["key"]
+        sources = record.get("sources", [])
+        if len(key) != 2 or not sources:
+            return None
+        entity, _ = key
+        for document_id, identifiers in sources:
+            occurrences = self.documents.get(document_id, {}).get("occurrences", [])
+            by_id = {item["id"]: item for item in occurrences}
+            if not identifiers or any(
+                occurrence not in by_id or by_id[occurrence]["label"] != "PER"
+                or by_id[occurrence]["entity"] != entity for occurrence in identifiers
+            ):
+                return None
+        return entity
+
+    def forms_by_occurrence(self, text):
+        references = {token: item["value"] for token, item in self.references.items()}
+        restore_references(text, references)
+        identities = {token: self.current_person_entity(record) for token, record in self.references.items()}
+        groups = {}
+        for token, entity in identities.items():
+            if entity:
+                groups.setdefault(entity, set()).add(references[token])
+        choices = {}
+        for index, match in enumerate(TOKEN.finditer(text)):
+            token = match.group()
+            original = references[token]
+            alternative = sorted(groups.get(identities[token], set()) - {original})
+            if alternative:
+                choices[index] = (original, *alternative)
+        return choices
+
+    def restore(self, text, overrides=None):
+        if overrides:
+            allowed = self.forms_by_occurrence(text)
+            if any(index not in allowed or value not in allowed[index] for index, value in overrides.items()):
+                raise ValueError("An alternate form is no longer authorized for this occurrence.")
+        return restore_references(text, {token: item["value"] for token, item in self.references.items()}, overrides)
