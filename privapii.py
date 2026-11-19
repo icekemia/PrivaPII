@@ -3,7 +3,7 @@
 import re
 import secrets
 import zlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from datetime import date
 
 
@@ -12,12 +12,17 @@ class Span:
     start: int
     end: int
     label: str
+    source: str = field(default="manual", compare=False)
+    confidence: float | None = field(default=None, compare=False)
+    validation: str | None = field(default=None, compare=False)
 
 
 EMAIL = re.compile(r"(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 PHONE = re.compile(r"(?<![\w+])(?:\+370|00370|[08])(?:[ .-]*[0-9]){8}(?!\w)")
 PERSONAL = re.compile(r"(?<!\w)[1-6][0-9]{10}(?!\w)")
 IBAN = re.compile(r"(?<!\w)LT[0-9]{2}(?:[ -]?[0-9]{4}){4}(?!\w)", re.I)
+PVM = re.compile(r"(?<!\w)LT[ \t]*(?:[0-9]{12}|[0-9]{9})(?!\w)", re.I)
+COMPANY = re.compile(r"\b(?:įmonės|įstaigos|juridinio asmens|organizacijos)\s+kodas\s*[:=]?\s*([0-9]{9})(?!\w)", re.I)
 TOKEN = re.compile(r"\[PRIVAPII_V1_[0-9A-F]{32}_[0-9A-F]{8}\]")
 TOKEN_START = re.compile(r"\[?\s*PRIVAPII[_-]", re.I)
 
@@ -39,26 +44,41 @@ def valid_iban(value):
     return int(value[4:] + "2129" + value[2:4]) % 97 == 1
 
 
+def valid_company_code(value):
+    digits = list(map(int, value))
+    first = sum(i * digit for i, digit in enumerate(digits[:-1], 1)) % 11
+    second = sum(i * digit for i, digit in enumerate(digits[:-1], 3)) % 11
+    return digits[-1] == (first if first < 10 else second % 10)
+
+
 def rules(text):
+    from stdnum.lt import pvm
+
     for pattern, label, validate in (
         (EMAIL, "EMAIL", None), (PHONE, "NUM_PHONE", None),
         (PERSONAL, "ID_PER", valid_personal_code), (IBAN, "IBAN", valid_iban),
+        (PVM, "PVM", pvm.is_valid), (COMPANY, "COMPANY_ID", valid_company_code),
     ):
         for match in pattern.finditer(text):
-            if validate is None or validate(match.group()):
-                yield Span(*match.span(), label)
+            index = 1 if pattern is COMPANY else 0
+            if validate is None or validate(match.group(index)):
+                yield Span(*match.span(index), label, "rule",
+                           validation="checksum passed" if validate else "format matched")
 
 
 def hybrid(text, baseline=()):
-    spans = set(baseline)
+    spans = {span: span for span in baseline}
     for candidate in rules(text):
-        if not any(
+        if candidate in spans:
+            span = spans[candidate]
+            spans[candidate] = replace(span, source="nus+rule", validation=candidate.validation)
+        elif not any(
             span.label == candidate.label
             and span.start <= candidate.start and span.end >= candidate.end
             for span in spans
         ):
-            spans.add(candidate)
-    return sorted(spans)
+            spans[candidate] = candidate
+    return sorted(spans.values())
 
 
 def canonical_token(body):

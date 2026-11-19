@@ -41,5 +41,5 @@ class NusDetector:
             while start < end and text[end - 1].isspace():
                 end -= 1
             if start < end:
-                spans.add(Span(start, end, item["entity_group"]))
+                spans.add(Span(start, end, item["entity_group"], "nus", float(item["score"])))
         return sorted(spans)
