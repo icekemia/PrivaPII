@@ -24,6 +24,12 @@ Open or create a workspace and choose **Review scan**. Select a PDF or image. Th
 
 Regions explicitly marked **Pseudonymize verified** stay protected when regenerating a TXT under another category profile. **Toggle exclusion** on the specific finding to retain it intentionally.
 
+### Export a visually redacted PDF
+
+From the reviewed export preview, choose **Review PDF masks**. Regions marked **Mask** or **Pseudonymize verified** start with padded black masks. Inspect the full page with **Fit / full size** and add masks by dragging over any remaining visual content that needs protection. Confirm each page, then choose **Save new redacted PDF**. Drawing or undoing a mask clears that page's confirmation.
+
+The PDF writer creates one lossless image per page from already-masked pixels. The source text layer, annotations, form objects, embedded attachments and source metadata are discarded during reconstruction. The PDF is irreversible and image-only. Use **Save new TXT** for the reversible file paired with the encrypted workspace. Manual page masks apply to the PDF alone. Review every page for sensitive content missed by both engines, including text outside recognized regions.
+
 ## Launch the standalone reviewer
 
 ```powershell
@@ -32,7 +38,7 @@ Regions explicitly marked **Pseudonymize verified** stay protected when regenera
 
 Remove `--create` to use an existing workspace. Every recognized region defaults to **Mask**. Use the crop as the source of truth. Type its exact transcription to keep it as text or pseudonymize the region with a restorable reference. A matching OCR pair and a checksum result can inform review. Only a human-confirmed transcription becomes restorable. OCR readings, coordinates, source digest, and review decisions are retained inside the encrypted workspace. Open the workspace in `app.py` to restore authorized references.
 
-The export is plain text. It approximates reading order by region position. The OCR workflow rasterizes each PDF page, including mixed pages, while the regular desktop import still uses the native text layer. OCR review has no native-text coordinate fusion, page completeness guarantee, table reconstruction, or image and PDF redaction. Text positions can shift when a recognized region spans multiple OCR lines. Compare both outputs with the visual original before sharing.
+The standalone reviewer exports plain text. It approximates reading order by region position. The OCR workflow rasterizes each PDF page, including mixed pages, while regular document import uses the native text layer. Native-text coordinate fusion, automated page completeness checks and table reconstruction remain open. Text positions can shift when a recognized region spans multiple OCR lines. Compare both outputs with the visual original before sharing.
 
 ## Verification
 
