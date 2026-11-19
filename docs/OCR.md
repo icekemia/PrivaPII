@@ -1,6 +1,6 @@
 # Local OCR review
 
-PrivaPII has a separate review window for scanned PDFs and raster images. It runs PP-OCRv6 Medium and Tesseract with the Lithuanian `tessdata_best` model on the CPU. The reviewer sees the original crop and both machine readings. Disagreement, agreement and human verification are separate states.
+PrivaPII opens a review window for scanned PDFs and raster images from an unlocked desktop workspace. It runs PP-OCRv6 Medium and Tesseract with the Lithuanian `tessdata_best` model on the CPU. The reviewer sees the original crop and both machine readings. Disagreement, agreement and human verification are separate states.
 
 ## Setup
 
@@ -18,7 +18,13 @@ Place the three inference files `inference.json`, `inference.pdiparams` and `inf
 
 The local NUS checkpoint remains in `models/nus/`. The runner takes local model directories explicitly, disables Paddle's remote model source check and uses neither cloud OCR nor automatic model installation.
 
-## Review a scan
+## Review a scan in the app
+
+Open or create a workspace and choose **Review scan**. Select a PDF or image. The OCR engines run in the background, and the review window opens when the local analysis finishes. Click **Finish** to save review evidence and authorized references to the workspace. Inspect the TXT preview and choose **Save new TXT** to export it. The same workspace can restore that file through **Restore derived text**.
+
+Regions explicitly marked **Pseudonymize verified** stay protected when regenerating a TXT under another category profile. **Toggle exclusion** on the specific finding to retain it intentionally.
+
+## Launch the standalone reviewer
 
 ```powershell
 .venv/Scripts/python.exe ocr_review.py local/scan.pdf --workspace local/scan.sqlite --output local/scan_reviewed.txt --create

@@ -21,7 +21,7 @@ Rules mode detects Lithuanian phone formats, email addresses and checksum-valid 
 
 The workspace stores an authenticated AES-GCM snapshot in SQLite. The passphrase derives the key locally with scrypt. If the passphrase is lost, the workspace cannot be recovered. Temporary mode keeps references in memory only. Linking is manual and scoped to the workspace. Confirmed identical surface forms can reuse a token, while different inflections have distinct tokens tied to the same entity. Previously generated references remain valid for their original surface forms after regrouping. Workspace files contain encrypted originals even when an output is redacted. Pseudonymized exports can retain identifying context.
 
-The prototype exports plain text. The desktop PDF import extracts the text layer and reports empty pages. A [separate local OCR review workflow](docs/OCR.md) supports scanned PDFs and raster images. PDF redaction and layout preservation, Word import, automatic identity resolution and passphrase recovery remain outside this milestone.
+The prototype exports plain text. **Import document** extracts the native PDF text layer and reports empty pages. Choose **Review scan** in an unlocked workspace to process scanned PDFs, raster images and mixed pages with [local OCR](docs/OCR.md). PDF redaction and layout preservation, Word import, automatic identity resolution and passphrase recovery remain outside this milestone.
 
 NUS finding scores describe model confidence and have not been calibrated as probabilities of correctness. Rule findings report the format or checksum check performed. Review the extraction and the selected findings for omissions before exporting.
 
