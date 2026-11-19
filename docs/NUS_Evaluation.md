@@ -54,3 +54,22 @@ The updated benchmark runner completed a rules-only diagnostic on all 123 docume
 ## Reproduction
 
 Use the setup instructions in the [README](../README.md). Run `python benchmark.py --rules-only` for the diagnostic and `python benchmark.py` for the paired comparison. Use `--limit 2` to check the setup on a smaller input.
+
+## Span-boundary development check
+
+The separate synthetic [Lithuanian fixture](../tests/fixtures/lithuanian_development.json) has ten texts and twenty annotated spans across seven scored categories. It includes inflected names, contacts, legal identifiers and a negative checksum example. Run the comparison with the local checkpoint:
+
+```powershell
+.venv/Scripts/python.exe benchmark.py --development tests/fixtures/lithuanian_development.json --compare-boundaries
+```
+
+The experimental decoder keeps the token prediction furthest from the edge of each overlapping window, then performs BIO decoding across the document. Its implementation is inspired by the upstream centered attribution approach. The existing application decoder remains the default.
+
+| Configuration | Exact matches | Boundary errors | Complete omissions | Documents with exposed gold |
+| --- | ---: | ---: | ---: | ---: |
+| NUS, either decoder | 5/20 | 11 | 4 | 3/10 |
+| NUS + rules, either decoder | 9/20 | 11 | 0 | 0/10 |
+
+All eleven boundary errors already had full mask coverage across the scored predictions. Six were person mentions. The four complete omissions were two email addresses, one company code and one VAT code. The structured rules covered all four exactly. The fixture probes selected behaviors and cannot establish performance on professional documents or justify switching decoders. The held-out NUS Parquet was not used for this comparison.
+
+A separate smoke check used four overlapping windows on a long synthetic document. Both decoders returned valid source offsets. Neither produced a person span that fully covered the target name in that context. A set of annotated examples around window joins is needed to measure long-document effects.
