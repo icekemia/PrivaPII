@@ -10,6 +10,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from ingestion import extract
 from nus import NusDetector, checkpoint_ready
+from ocr_review import Reviewer, ScanProcessor, export_review
 from policy import ALL_CATEGORIES, CATEGORY_GROUPS, PROFILES, selected_indices
 from privapii import Case, Span, hybrid, review_spans
 from vault import Workspace, new_id
@@ -75,6 +76,7 @@ class App:
         self.root = root
         self.model_dir = model_dir
         self.detector = None
+        self.scan_processor = None
         self.worker = ThreadPoolExecutor(max_workers=1)
         self.case = Case()
         self.document_id = new_id()
@@ -112,6 +114,7 @@ class App:
         bar.pack(fill="x")
         self.detect_button = self.button(bar, "Detect", self.detect)
         self.button(bar, "Import document", self.open_source)
+        self.scan_button = self.button(bar, "Review scan", self.open_scan)
         self.button(bar, "Mark selected text", self.mark)
         self.button(bar, "Categories and profiles", self.edit_policy)
         modes = ("Rules only", "NUS only", "NUS + rules") if checkpoint_ready(model_dir) else ("Rules only",)
@@ -346,6 +349,7 @@ class App:
         mode = self.mode.get()
         document_id, workspace = self.document_id, self.case
         self.detect_button.state(["disabled"])
+        self.scan_button.state(["disabled"])
         self.status.set("Detecting on this device…")
         future = self.worker.submit(self.compute, text, mode)
 
@@ -354,6 +358,7 @@ class App:
                 self.root.after(100, poll)
                 return
             self.detect_button.state(["!disabled"])
+            self.scan_button.state(["!disabled"])
             try:
                 spans = future.result()
             except Exception as error:
@@ -364,7 +369,8 @@ class App:
                     or text != self.value(self.source)):
                 self.status.set("Source changed during detection. Run detection again.")
                 return
-            reviewed = [span for span in self.spans if span.source == "manual"] if self.snapshot == text else []
+            reviewed = [span for span in self.spans if span.source in {"manual", "ocr-human-verified"}
+                        ] if self.snapshot == text else []
             corrected = {(span.start, span.end) for span in reviewed}
             self.snapshot = text
             self.show_findings(sorted(reviewed + [span for span in spans
@@ -372,6 +378,88 @@ class App:
             self.status.set(f"{mode}: {len(spans)} findings. Inspect the source for omissions.")
 
         self.root.after(100, poll)
+
+    def open_scan(self):
+        if not self.workspace_active():
+            self.status.set("Create or unlock a workspace before reviewing a scan.")
+            return
+        if not checkpoint_ready(self.model_dir):
+            self.status.set("Install the local NUS checkpoint and OCR models to review a scan.")
+            return
+        path = filedialog.askopenfilename(filetypes=[("Scans and images", "*.pdf *.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp")])
+        if not path or not self.persist():
+            return
+        source = Path(path)
+        workspace = self.case
+        self.detect_button.state(["disabled"])
+        self.scan_button.state(["disabled"])
+        self.status.set("Reading the scan with both local OCR engines…")
+        future = self.worker.submit(self.read_scan, source)
+
+        def poll():
+            if not future.done():
+                self.root.after(100, poll)
+                return
+            self.detect_button.state(["!disabled"])
+            self.scan_button.state(["!disabled"])
+            if self.case is not workspace:
+                return
+            try:
+                pages, reviews, digest = future.result()
+                window = tk.Toplevel(self.root)
+                window.transient(self.root)
+                review = Reviewer(window, pages, reviews)
+                window.grab_set()
+                self.root.wait_window(window)
+                if not review.confirmed:
+                    self.status.set("OCR review canceled.")
+                    return
+                if self.case is not workspace or not self.persist():
+                    return
+                output = export_review(workspace, source, digest, 250, reviews)
+                self.load_document(next(reversed(workspace.documents)))
+                self.preview_scan_export(output)
+                self.status.set("OCR review saved to the encrypted workspace.")
+            except Exception as error:
+                self.status.set("OCR review failed.")
+                messagebox.showerror("OCR review failed", str(error), parent=self.root)
+
+        self.root.after(100, poll)
+
+    def read_scan(self, source):
+        if self.scan_processor is None:
+            self.scan_processor = ScanProcessor(self.model_dir.parent)
+        if self.detector is None:
+            self.detector = NusDetector(self.model_dir)
+        return self.scan_processor.read(source, 250, self.detector)
+
+    def preview_scan_export(self, output):
+        window = tk.Toplevel(self.root)
+        window.title("Reviewed scan export")
+        window.transient(self.root)
+        window.geometry("820x540")
+        preview = self.text(window, "Reviewed TXT · inspect before sharing", 16, readonly=True)
+        self.replace(preview, output)
+        bar = ttk.Frame(window, padding=8)
+        bar.pack(fill="x")
+
+        def save():
+            path = filedialog.asksaveasfilename(parent=window, defaultextension=".txt",
+                                               filetypes=[("Text", "*.txt")])
+            if not path:
+                return
+            try:
+                with Path(path).open("x", encoding="utf-8", newline="") as stream:
+                    stream.write(output)
+            except OSError as error:
+                messagebox.showerror("Save failed", str(error), parent=window)
+                return
+            window.destroy()
+
+        self.button(bar, "Save new TXT", save)
+        self.button(bar, "Close preview", window.destroy)
+        window.grab_set()
+        self.root.wait_window(window)
 
     def compute(self, text, mode):
         if mode == "Rules only":
@@ -389,9 +477,10 @@ class App:
         document = self.case.documents.get(self.document_id, {}) if self.workspace_active() else {}
         entities = {(item["start"], item["end"], item["label"]): item["entity"]
                     for item in document.get("occurrences", []) if document["text"] == text}
-        for span in spans:
+        protected = set(selected_indices(spans, self.categories, self.excluded))
+        for index, span in enumerate(spans):
             value = text[span.start:span.end]
-            action = "keep" if span in self.excluded or span.label not in self.categories else "protect"
+            action = "protect" if index in protected else "keep"
             entity = entities.get((span.start, span.end, span.label), "")
             confidence = f"{span.confidence:.2f}" if span.confidence is not None else ""
             evidence = "/".join(item for item in (span.source, confidence, span.validation, entity[:8]) if item)
@@ -442,7 +531,8 @@ class App:
         if dialog.result is None:
             return
         old = self.spans[selected[0]]
-        new = replace(old, label=categories[dialog.result], source="manual",
+        source = "ocr-human-verified" if old.source == "ocr-human-verified" else "manual"
+        new = replace(old, label=categories[dialog.result], source=source,
                       confidence=None, validation=None)
         if old in self.excluded:
             self.excluded.remove(old)

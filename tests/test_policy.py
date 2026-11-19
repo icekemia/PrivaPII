@@ -10,3 +10,8 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(selected_indices(findings, ALL_CATEGORIES, set()), [0, 1, 2])
         self.assertEqual(selected_indices(findings, {"PER"}, {findings[2]}), [0])
         self.assertEqual(selected_indices(findings, set(), set()), [])
+
+    def test_verified_ocr_protection_survives_reopening_with_a_different_profile(self):
+        span = Span(0, 10, "DATE", "ocr-human-verified")
+        self.assertEqual(selected_indices([span], set(), set()), [0])
+        self.assertEqual(selected_indices([span], set(), {span}), [])

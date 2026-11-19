@@ -22,6 +22,6 @@ def extract(path: Path):
     except PdfReadError as error:
         raise ValueError("The PDF could not be read.") from error
     if not any(page.strip() for page in pages):
-        raise ValueError("This PDF has no extractable text. OCR is not available in this prototype.")
+        raise ValueError("This PDF has no extractable text. Open an unlocked workspace and use Review scan.")
     text = "\n\n".join(pages).replace("\r\n", "\n").replace("\r", "\n")
     return text, sum(not page.strip() for page in pages)

@@ -17,4 +17,4 @@ PROFILES = {
 
 def selected_indices(spans, categories, excluded):
     return [index for index, span in enumerate(spans)
-            if span.label in categories and span not in excluded]
+            if (span.label in categories or span.source == "ocr-human-verified") and span not in excluded]

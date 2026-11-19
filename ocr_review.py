@@ -10,7 +10,7 @@ from tkinter import messagebox, ttk
 
 from nus import NusDetector
 from ocr import Paddle, Region, Tesseract, align, raster_pages
-from privapii import Span, hybrid, rules
+from privapii import Span, hybrid, review_spans, rules
 from vault import Workspace, new_id
 
 
@@ -28,7 +28,7 @@ def find_categories(reviews, detector):
     inputs = [" ".join(reading.text for reading in (item.region.primary or item.region.alternative))
               for item in reviews]
     text = "\n".join(inputs)
-    spans = hybrid(text, detector(text))
+    spans = review_spans(text, hybrid(text, detector(text)))
     offset = 0
     for item, content in zip(reviews, inputs):
         labels = {span.label for span in spans
@@ -37,6 +37,33 @@ def find_categories(reviews, detector):
             labels.update(span.label for span in rules(reading.text))
         item.categories = tuple(sorted(labels))
         offset += len(content) + 1
+
+
+class ScanProcessor:
+    """Reuse local recognition engines across a sequence of document imports."""
+
+    def __init__(self, model_dir):
+        self.paddle = Paddle(model_dir / "PP-OCRv6_medium_det", model_dir / "PP-OCRv6_medium_rec")
+        self.tesseract = Tesseract(model_dir / "tesseract")
+
+    def read(self, source, dpi, detector):
+        with source.open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        pages, reviews = {}, []
+        for page, image in raster_pages(source, dpi):
+            pages[page] = image
+            regions = align(self.paddle.read(image), self.tesseract.read(image))
+            if not regions:
+                regions = [Region((0, 0, image.width, image.height), (), (), "unresolved")]
+            items = [Review(page, image.size, region) for region in regions]
+            find_categories(items, detector)
+            reviews.extend(items)
+        if not reviews:
+            raise ValueError("No pages were available for review.")
+        with source.open("rb") as stream:
+            if hashlib.file_digest(stream, "sha256").hexdigest() != digest:
+                raise ValueError("The source changed during OCR. Import it again.")
+        return pages, reviews, digest
 
 
 def export_review(workspace, source, source_digest, dpi, reviews):
@@ -156,22 +183,8 @@ def main():
     if args.create and getpass("Confirm passphrase: ") != passphrase:
         parser.error("Passphrases do not match")
     workspace = Workspace(args.workspace, passphrase, create=args.create)
-    paddle = Paddle(args.model_dir / "PP-OCRv6_medium_det", args.model_dir / "PP-OCRv6_medium_rec")
-    tesseract = Tesseract(args.model_dir / "tesseract")
-    detector = NusDetector(args.model_dir / "nus")
-    pages, reviews = {}, []
-    with args.source.open("rb") as stream:
-        digest = hashlib.file_digest(stream, "sha256").hexdigest()
-    for page, image in raster_pages(args.source, args.dpi):
-        pages[page] = image
-        regions = align(paddle.read(image), tesseract.read(image))
-        if not regions:
-            regions = [Region((0, 0, image.width, image.height), (), (), "unresolved")]
-        items = [Review(page, image.size, region) for region in regions]
-        find_categories(items, detector)
-        reviews.extend(items)
-    if not reviews:
-        parser.error("No pages were available for review")
+    processor = ScanProcessor(args.model_dir)
+    pages, reviews, digest = processor.read(args.source, args.dpi, NusDetector(args.model_dir / "nus"))
     root = tk.Tk()
     review = Reviewer(root, pages, reviews)
     root.mainloop()
