@@ -41,4 +41,4 @@ python -m unittest discover -s tests -v
 
 The paired run compares the NUS checkpoint through PrivaPII's offline adapter with the same adapter plus rules. It measures exact annotated spans and annotated text that would remain partially or fully exposed. New rule types outside the NUS taxonomy are counted separately and need adjudication. The upstream evaluation split is useful for relative comparison and remains distinct from the planned independent benchmark.
 
-See the [action plan](docs/PrivaPII_Action_Plan.md), [benchmark protocol](docs/Benchmark_Protocol.md) and [dependency review](docs/Dependency_Review.md).
+See the [demo guide](docs/Demo_Guide.md), [action plan](docs/PrivaPII_Action_Plan.md), [benchmark protocol](docs/Benchmark_Protocol.md) and [dependency review](docs/Dependency_Review.md).
