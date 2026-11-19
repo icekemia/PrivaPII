@@ -2,7 +2,7 @@
 
 ## Corpus and scope
 
-The local Parquet export contains 123 documents and 7,148 annotated spans. This is the upstream NUS held-out split. PrivaPII uses it for reproducible comparison on the same documents, alongside the planned independent benchmark.
+The local Parquet export of the upstream NUS held-out split contains 123 documents and 7,323 annotated spans. Use the observed Parquet counts when comparing PrivaPII runs on this data. The NUS model card reports 7,148 entities for its published evaluation, so treat its published scores and this Parquet run as distinct measurements. [NUS model card](https://huggingface.co/VytautoDidziojoUniversitetas/NUS-LT-PII-xlm-roberta-large/blob/ab8357ffd9563a8035344e85d6b5f3c6a0c8a8e4/README.md)
 
 Parquet SHA-256: `e06b371a1703171a03cfd13180bcb73bbe48ac6a5d58b65c61e78c5e57ed47e6`
 
