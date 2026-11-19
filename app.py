@@ -101,6 +101,7 @@ class App:
         workspace.pack(fill="x")
         self.button(workspace, "Create workspace", lambda: self.open_workspace(True))
         self.button(workspace, "Open workspace", lambda: self.open_workspace(False))
+        self.button(workspace, "Lock", self.lock_workspace)
         self.button(workspace, "New document", self.new_document)
         self.documents = ttk.Combobox(workspace, state="readonly", width=28)
         self.documents.pack(side="left", padx=4)
@@ -139,8 +140,12 @@ class App:
         self.button(controls, "Save reviewed export", self.save_export)
         self.export = self.text(review, "Export preview · review before sharing", 8, readonly=True)
         self.derived = self.text(restore, "Paste the derived text for this case", 12)
-        self.button(restore, "Preview local restoration", self.restore)
+        restore_actions = ttk.Frame(restore)
+        restore_actions.pack(fill="x")
+        self.button(restore_actions, "Import derived text", self.import_derived)
+        self.button(restore_actions, "Preview local restoration", self.restore)
         self.restored = self.text(restore, "Restored preview · contains original values", 12, readonly=True)
+        self.derived.bind("<<Modified>>", self.derived_changed)
         ttk.Label(root, textvariable=self.status, padding=(12, 0, 12, 10)).pack(fill="x")
 
     @staticmethod
@@ -185,6 +190,11 @@ class App:
             self.source.edit_modified(False)
             if self.export_review and self.export_review[0] != self.value(self.source):
                 self.clear_export()
+
+    def derived_changed(self, _event):
+        if self.derived.edit_modified():
+            self.derived.edit_modified(False)
+            self.replace(self.restored, "")
 
     def review_current(self):
         text = self.value(self.source)
@@ -273,6 +283,22 @@ class App:
         self.replace(self.restored, "")
         self.load_document(next(iter(workspace.documents), new_id()))
         self.status.set("Workspace unlocked. Import documents or open a saved review.")
+
+    def lock_workspace(self):
+        if not self.workspace_active() or not self.persist():
+            return
+        self.case = Case()
+        self.categories = set(ALL_CATEGORIES)
+        self.profile_name = "Standard"
+        self.document_ids = []
+        self.documents.configure(values=())
+        self.documents.set("")
+        self.workspace_label.set("Workspace locked")
+        self.load_document(new_id())
+        self.replace(self.derived, "")
+        self.derived.edit_reset()
+        self.replace(self.restored, "")
+        self.status.set("Workspace locked. Open it again to restore references.")
 
     def switch_document(self, _event=None):
         index = self.documents.current()
@@ -502,12 +528,25 @@ class App:
         self.replace(self.restored, "")
         try:
             restored, count = self.case.restore(self.value(self.derived))
+            self.derived.edit_modified(False)
             if count:
                 self.replace(self.restored, restored)
             self.status.set(f"{count} exact references restored. Review attribution and Lithuanian grammar.")
         except ValueError as error:
             self.status.set("Restoration blocked.")
             messagebox.showerror("Restoration blocked", str(error))
+
+    def import_derived(self):
+        paths = filedialog.askopenfilenames(filetypes=[("Text and Markdown", "*.txt *.md *.markdown")])
+        if paths:
+            try:
+                content = [Path(path).read_text(encoding="utf-8-sig") for path in paths]
+                self.replace(self.derived, "\n\n".join(content))
+                self.derived.edit_reset()
+                self.replace(self.restored, "")
+                self.status.set(f"Imported {len(paths)} derived text files.")
+            except (OSError, UnicodeError) as error:
+                messagebox.showerror("Derived text import failed", str(error))
 
     def close(self):
         if (self.workspace_active() or messagebox.askyesno(

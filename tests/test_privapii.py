@@ -19,6 +19,8 @@ class CaseTests(unittest.TestCase):
             Case().restore(token)
         with self.assertRaises(ValueError):
             case.restore(token[:-2])
+        with self.assertRaises(ValueError):
+            case.restore(token + " [PRIVAPII")
 
     def test_overlap_redacts_entire_union_without_mapping(self):
         case = Case()

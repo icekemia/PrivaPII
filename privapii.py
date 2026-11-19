@@ -24,7 +24,7 @@ IBAN = re.compile(r"(?<!\w)LT[0-9]{2}(?:[ -]?[0-9]{4}){4}(?!\w)", re.I)
 PVM = re.compile(r"(?<!\w)LT[ \t]*(?:[0-9]{12}|[0-9]{9})(?!\w)", re.I)
 COMPANY = re.compile(r"\b(?:įmonės|įstaigos|juridinio asmens|organizacijos)\s+kodas\s*[:=]?\s*([0-9]{9})(?!\w)", re.I)
 TOKEN = re.compile(r"\[PRIVAPII_V1_[0-9A-F]{32}_[0-9A-F]{8}\]")
-TOKEN_START = re.compile(r"\[?\s*PRIVAPII[_-]", re.I)
+TOKEN_START = re.compile(r"(?:\[\s*PRIVAPII\b|\bPRIVAPII[_-])", re.I)
 
 
 def valid_personal_code(value):
