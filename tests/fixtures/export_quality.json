@@ -1,0 +1,10 @@
+{
+  "documents": [
+    "I SKYRIUS\n[[KEEP_REFERENCE|1.]] Dokumentas išduotas [[KEEP_DATE|2026 m. lapkričio mėn. 16 d.]]\n[[KEEP_REFERENCE|3.]] Gavėjas: [[PER|Austėja Varnaitė]]. Žr. [[KEEP_REFERENCE|1 p.]]",
+    "Pranešimas [[PER|Austėjai Varnaitei]] išsiųstas [[KEEP_DATE|2026 m. lapkričio 18 d.]]\nSusisiekite adresu [[EMAIL|austeja.fixture@example.org]].",
+    "II SKYRIUS\n[[KEEP_REFERENCE|2.1.]] Atsakingas asmuo: [[PER|Gabrielius Šalna]].\nTelefono numeris: [[NUM_PHONE|+370 612 34567]].\nVadovaujamasi [[KEEP_REFERENCE|2.1 punktu]].",
+    "Pareiškėjas [[PER|Mantas Upėnas]], gimimo data: [[DOB|1988-10-09]].\nPareiškimo data: [[KEEP_DATE|2026-11-19]].",
+    "Sutartis galioja nuo [[KEEP_DATE|2026.11.16]] iki [[KEEP_DATE|2027.11.16]].\n[[KEEP_REFERENCE|4)]] Sutartį pasirašė [[PER|Rūta Mintytė]].",
+    "III SKYRIUS\n[[KEEP_REFERENCE|5.]] Pareiškėjos [[PER|Rūtos Mintytės]] laiškas gautas [[KEEP_DATE|2026 m. spalio 3 d.]]\nEl. paštas: [[EMAIL|ruta.fixture@example.net]].\nŽiūrėti [[KEEP_REFERENCE|5 punktą]]."
+  ]
+}
