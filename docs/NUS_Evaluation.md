@@ -73,3 +73,16 @@ The experimental decoder keeps the token prediction furthest from the edge of ea
 All eleven boundary errors already had full mask coverage across the scored predictions. Six were person mentions. The four complete omissions were two email addresses, one company code and one VAT code. The structured rules covered all four exactly. The fixture probes selected behaviors and cannot establish performance on professional documents or justify switching decoders. The held-out NUS Parquet was not used for this comparison.
 
 A separate smoke check used four overlapping windows on a long synthetic document. Both decoders returned valid source offsets. Neither produced a person span that fully covered the target name in that context. A set of annotated examples around window joins is needed to measure long-document effects.
+
+## Markdown export quality check
+
+Run `.venv/Scripts/python.exe export_quality.py` with the local NUS checkpoint. The [synthetic fixture](../tests/fixtures/export_quality.json) annotates both sensitive spans and content the Standard profile should preserve. The checker runs hybrid detection, applies the profile, renders an actual Markdown export, then reorders and repeats excerpts before restoring them through a reopened encrypted workspace. Coverage is measured against source spans. Restoration is measured separately against the expected formatted document.
+
+| Check | Before preserving line breaks | After preserving line breaks |
+| --- | ---: | ---: |
+| Annotated sensitive fields fully protected | 10/10 | 10/10 |
+| Annotated dates and clause references preserved | 14/14 | 14/14 |
+| Individual Markdown exports matching expected restoration | 4/6 | 6/6 |
+| Combined and reordered Markdown matching expected restoration | No | Yes |
+
+Two originals had automatic detections that spanned line breaks. The fix protects each affected line while preserving the break outside the token. The final combined check restored 16 token occurrences. The privacy figures apply to the annotated fields in these six synthetic documents. Wider coverage and table fidelity need their own evaluation.
