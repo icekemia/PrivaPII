@@ -34,6 +34,25 @@ class ContextTests(unittest.TestCase):
         reference = Span(start, start + 3, "ID_MISC", "nus")
         self.assertEqual(review_spans(text, [date, reference]), [date])
 
+    def test_broad_identifier_span_retains_point_reference_and_keeps_other_text_protected(self):
+        text = "kaip nurodyta 1 p. X-123"
+        start = text.index("1 p.")
+        span = Span(start, len(text), "ID_MISC", "nus")
+        reviewed = review_spans(text, [span])
+        case = Case()
+        output = case.transform(text, reviewed)
+        self.assertIn("1 p.", output)
+        self.assertNotIn("X-123", output)
+        self.assertEqual(case.restore(output), (text, 1))
+
+    def test_broad_span_preserves_line_break_before_list_marker(self):
+        text = "AB-123\n1. Sąlyga"
+        span = Span(0, len("AB-123\n1."), "ID_MISC", "nus")
+        case = Case()
+        output = case.transform(text, review_spans(text, [span]))
+        self.assertIn("\n1. Sąlyga", output)
+        self.assertNotIn("AB-123", output)
+
     def test_typed_token_for_specific_identifier_with_generic_overlap(self):
         case = Case()
         text = "Identifier"

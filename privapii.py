@@ -30,8 +30,8 @@ DOB = re.compile(r"\b(?:gimimo\s+data|gim\.|gimęs|gimusi)\s*[:=]?\s*(" + DATE_V
 REFERENCE_NUMBER = r"[0-9]{1,3}(?:\.[0-9]{1,3})*"
 STRUCTURAL = (
     re.compile(r"^[ \t]*(" + REFERENCE_NUMBER + r")[.)](?=[ \t]|[^\W\d_]|$)", re.M),
-    re.compile(r"\b(" + REFERENCE_NUMBER + r")\s*(?:p\.(?!\w)|punkt\w*\b|papunkt\w*\b)", re.I),
-    re.compile(r"\b(?:punkt\w*|papunkt\w*|punto|punti|point|paragraph|section)\s+(" + REFERENCE_NUMBER + r")(?!\w|\.\d|[-/]\d)", re.I),
+    re.compile(r"\b(" + REFERENCE_NUMBER + r")[ \t]*(?:p\.(?!\w)|punkt\w*\b|papunkt\w*\b)", re.I),
+    re.compile(r"\b(?:punkt\w*|papunkt\w*|punto|punti|point|paragraph|section)[ \t]+(" + REFERENCE_NUMBER + r")(?!\w|\.\d|[-/]\d)", re.I),
 )
 
 
@@ -94,10 +94,11 @@ def review_spans(text, findings):
     structural = []
     for pattern in STRUCTURAL:
         for match in pattern.finditer(text):
-            start, end = match.span(1)
+            start, end = match.span()
             if end < len(text) and text[end:end + 1] in {".", ")"}:
                 end += 1
             structural.append((start, end))
+    structural.sort()
     birth_dates = [Span(*match.span(1), "DOB", "context-rule") for match in DOB.finditer(text)]
     retained = []
     for span in findings:
@@ -106,14 +107,32 @@ def review_spans(text, findings):
             start += 1
         while end > start and text[end - 1].isspace():
             end -= 1
-        if span.label in {"VALUE", "ID_MISC", "NUM_CAR", "DATE"} and any(
-            left <= start < end <= right for left, right in structural
+        if span.source != "manual" and span.label == "DATE" and any(
+            start < birth.end and end > birth.start for birth in birth_dates
         ):
             continue
-        if span.label == "DATE" and any(start < birth.end and end > birth.start for birth in birth_dates):
+        if span.source == "manual" or span.label not in {"VALUE", "ID_MISC", "NUM_CAR", "DATE"}:
+            retained.append(span)
             continue
-        retained.append(span)
+        cursor = span.start
+        for left, right in structural:
+            if right <= cursor or left >= span.end:
+                continue
+            if cursor < left:
+                retain_fragment(retained, span, text, cursor, left)
+            cursor = max(cursor, right)
+        if cursor == span.start:
+            retained.append(span)
+        elif cursor < span.end:
+            retain_fragment(retained, span, text, cursor, span.end)
     return sorted(set(retained + birth_dates))
+
+
+def retain_fragment(retained, span, text, start, end):
+    value = text[start:end]
+    if any(char.isalnum() for char in value):
+        retained.append(replace(span, start=start + len(value) - len(value.lstrip()),
+                                end=start + len(value.rstrip())))
 
 
 def canonical_token(body):
