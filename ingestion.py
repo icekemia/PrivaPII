@@ -7,8 +7,12 @@ def extract(path: Path):
     suffix = path.suffix.lower()
     if suffix in {".txt", ".md", ".markdown", ".tsv"}:
         return path.read_text(encoding="utf-8-sig"), 0
+    if suffix == ".docx":
+        from word_documents import extract_word
+
+        return extract_word(path), 0
     if suffix != ".pdf":
-        raise ValueError("Choose a TXT, TSV, Markdown or text-based PDF file.")
+        raise ValueError("Choose a TXT, TSV, Markdown, DOCX or text-based PDF file.")
 
     from pypdf import PdfReader
     from pypdf.errors import PdfReadError

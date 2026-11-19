@@ -9,7 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
-from export_formats import TEXT_FORMATS, render_export, restore_csv
+from export_formats import TEXT_FORMATS, parse_csv, render_export, restore_csv, table_rows
 from ingestion import extract
 from nus import NusDetector, checkpoint_ready
 from ocr import raster_pages
@@ -22,6 +22,7 @@ from raster_tables import find_grids
 from table_grid_view import TableGridView
 from tabular import detect_table
 from vault import Workspace, new_id
+from word_documents import extract_word, extract_word_tables, write_word
 
 
 class ChoiceDialog(simpledialog.Dialog):
@@ -45,8 +46,9 @@ class TableDialog(simpledialog.Dialog):
         super().__init__(parent, "Review PDF table before importing")
 
     def body(self, master):
-        values = [f"Page {table.page} · Table {table.number} · "
-                  f"{len(table.rows)} rows × {len(table.rows[0])} columns" for table in self.tables]
+        values = [f"{'Page ' + str(table.page) + ' · ' if hasattr(table, 'page') else ''}"
+                  f"Table {table.number} · {len(table.rows)} rows × {len(table.rows[0])} columns"
+                  for table in self.tables]
         self.selector = ttk.Combobox(master, values=values, state="readonly", width=58)
         self.selector.pack(fill="x", pady=(0, 6))
         self.selector.current(0)
@@ -167,7 +169,12 @@ class App:
         bar.pack(fill="x")
         self.detect_button = self.button(bar, "Detect", self.detect)
         self.button(bar, "Import document", self.open_source)
-        self.table_button = self.button(bar, "PDF table", self.open_pdf_table)
+        self.table_button = ttk.Menubutton(bar, text="Import table")
+        table_menu = tk.Menu(self.table_button, tearoff=False)
+        table_menu.add_command(label="Digital PDF", command=self.open_pdf_table)
+        table_menu.add_command(label="Word document", command=lambda: self.open_table(word=True))
+        self.table_button.configure(menu=table_menu)
+        self.table_button.pack(side="left", padx=(0, 6))
         self.scan_button = ttk.Menubutton(bar, text="Review scan")
         scan_menu = tk.Menu(self.scan_button, tearoff=False)
         scan_menu.add_command(label="Document lines", command=self.open_scan)
@@ -211,13 +218,13 @@ class App:
         restore_actions.pack(fill="x")
         self.derived_format = tk.StringVar(value="Text / Markdown")
         restore_format = ttk.Combobox(restore_actions, textvariable=self.derived_format,
-                                     state="readonly", values=("Text / Markdown", "CSV"), width=16)
+                                     state="readonly", values=("Text / Markdown", "CSV", "Word"), width=16)
         restore_format.pack(side="left", padx=4)
         restore_format.bind("<<ComboboxSelected>>", lambda _: self.reset_restoration())
         self.button(restore_actions, "Import derived text", self.import_derived)
         self.button(restore_actions, "Preview local restoration", self.restore)
         self.button(restore_actions, "Choose verified person form", self.choose_person_form)
-        self.button(restore_actions, "Save restored CSV", self.save_restored_csv)
+        self.button(restore_actions, "Save restored file", self.save_restored_file)
         self.restored = self.text(restore, "Restored preview · contains original values", 12, readonly=True)
         self.derived.bind("<<Modified>>", self.derived_changed)
         ttk.Label(root, textvariable=self.status, padding=(12, 0, 12, 10)).pack(fill="x")
@@ -405,10 +412,10 @@ class App:
             self.status.set("Paste text or import a document.")
 
     def open_source(self):
-        paths = filedialog.askopenfilenames(filetypes=[("Supported documents", "*.txt *.tsv *.md *.markdown *.pdf")])
+        paths = filedialog.askopenfilenames(filetypes=[("Supported documents", "*.txt *.tsv *.md *.markdown *.pdf *.docx")])
         if not paths or not self.persist():
             return
-        imported = sum_empty = 0
+        imported = sum_empty = word_count = 0
         for filename in paths:
             try:
                 path = Path(filename)
@@ -420,25 +427,32 @@ class App:
                     return
                 imported += 1
                 sum_empty += empty
+                word_count += path.suffix.lower() == ".docx"
                 if not self.workspace_active():
                     break
             except (OSError, ValueError) as error:
                 messagebox.showerror("Import failed", str(error))
         if imported:
-            self.status.set(f"{imported} imported. Detect and review extracted text. {sum_empty} PDF pages had no text.")
+            note = " Word import covers body text and tables." if word_count else ""
+            self.status.set(f"{imported} imported. Detect and review extracted text. {sum_empty} PDF pages had no text.{note}")
 
     def set_processing(self, active):
         for button in (self.detect_button, self.scan_button, self.table_button):
             button.state(["disabled" if active else "!disabled"])
 
     def open_pdf_table(self):
-        path = filedialog.askopenfilename(filetypes=[("Digital PDF", "*.pdf")])
+        self.open_table(word=False)
+
+    def open_table(self, *, word):
+        kind, extension, extractor = ("Word", "*.docx", extract_word_tables) if word else (
+            "PDF", "*.pdf", extract_pdf_tables)
+        path = filedialog.askopenfilename(filetypes=[(kind, extension)])
         if not path or not self.persist():
             return
         workspace = self.case
         self.set_processing(True)
-        self.status.set("Looking for complete table grids in the PDF…")
-        future = self.worker.submit(extract_pdf_tables, Path(path))
+        self.status.set(f"Looking for complete tables in the {kind}…")
+        future = self.worker.submit(extractor, Path(path))
 
         def poll():
             if not future.done():
@@ -450,18 +464,19 @@ class App:
             try:
                 tables = future.result()
                 if not tables:
-                    self.status.set("No complete native-text table grids found in this PDF.")
+                    self.status.set(f"No complete rectangular table found in the {kind}.")
                     return
                 table = TableDialog(self.root, tables).result
                 if table is None or not self.persist():
                     return
-                name = f"{Path(path).stem}_p{table.page}_table{table.number}.tsv"
+                page = f"_p{table.page}" if not word else ""
+                name = f"{Path(path).stem}{page}_table{table.number}.tsv"
                 self.load_document(new_id(), name, table.tsv())
                 if self.persist():
                     self.status.set("Table imported. Detect, review and choose CSV in the export preview.")
             except Exception as error:
-                self.status.set("PDF table import failed.")
-                messagebox.showerror("PDF table import failed", str(error), parent=self.root)
+                self.status.set(f"{kind} table import failed.")
+                messagebox.showerror(f"{kind} table import failed", str(error), parent=self.root)
 
         self.root.after(100, poll)
 
@@ -609,11 +624,15 @@ class App:
         ttk.Label(options, text="Format").pack(side="left", padx=(0, 8))
         default = "Markdown" if Path(source_name).suffix.lower() in {".md", ".markdown"} else "TXT"
         format_name = tk.StringVar(value=default)
-        choices = {"TXT": output, "Markdown": render_export(output, "Markdown", source_name)}
+        choices = {"TXT": output, "Markdown": render_export(output, "Markdown", source_name), "Word": output}
+        word_rows = None
         try:
             choices["CSV"] = render_export(output, "CSV", source_name, source_text)
         except ValueError:
             pass
+        else:
+            word_rows = parse_csv(choices["CSV"])
+            choices["Word"] = "\n".join("\t".join(row) for row in word_rows)
         selector = ttk.Combobox(options, textvariable=format_name, values=list(choices),
                                 state="readonly", width=14)
         selector.pack(side="left")
@@ -640,8 +659,12 @@ class App:
                                      parent=window)
                 return
             try:
-                with Path(path).open("x", encoding="utf-8", newline="") as stream:
-                    stream.write(self.value(preview))
+                if kind == "Word":
+                    with Path(path).open("xb") as stream:
+                        write_word(stream, self.value(preview), word_rows)
+                else:
+                    with Path(path).open("x", encoding="utf-8", newline="") as stream:
+                        stream.write(self.value(preview))
             except (OSError, UnicodeError) as error:
                 messagebox.showerror("Save failed", str(error), parent=window)
                 return
@@ -841,23 +864,34 @@ class App:
             self.status.set("Restoration blocked.")
             messagebox.showerror("Restoration blocked", str(error))
 
-    def save_restored_csv(self):
-        if not self.restored_result or self.restored_result[:2] != (self.value(self.derived), "CSV") or self.derived_format.get() != "CSV":
-            self.status.set("Preview the current CSV restoration before saving.")
+    def save_restored_file(self):
+        kind = self.derived_format.get()
+        if kind not in {"CSV", "Word"} or not self.restored_result or self.restored_result[:2] != (
+                self.value(self.derived), kind):
+            self.status.set("Preview a CSV or Word restoration before saving.")
             return
-        path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV", "*.csv")])
+        extension = TEXT_FORMATS[kind]
+        path = filedialog.asksaveasfilename(defaultextension=extension, filetypes=[(kind, "*" + extension)])
         if not path:
             return
-        if Path(path).suffix.lower() != ".csv":
-            messagebox.showerror("Choose a matching extension", "Use .csv for the restored table.")
+        if Path(path).suffix.lower() != extension:
+            messagebox.showerror("Choose a matching extension", f"Use {extension} for the restored file.")
             return
         try:
-            with Path(path).open("x", encoding="utf-8", newline="") as stream:
-                stream.write(self.restored_result[2])
-        except OSError as error:
+            if kind == "Word":
+                try:
+                    rows = table_rows(self.restored_result[2], "restored.tsv")
+                except ValueError:
+                    rows = None
+                with Path(path).open("xb") as stream:
+                    write_word(stream, self.restored_result[2], rows)
+            else:
+                with Path(path).open("x", encoding="utf-8", newline="") as stream:
+                    stream.write(self.restored_result[2])
+        except (OSError, UnicodeError) as error:
             messagebox.showerror("Save failed", str(error))
             return
-        self.status.set("Restored CSV saved locally. It contains original values.")
+        self.status.set(f"Restored {kind} saved locally. It contains original values.")
 
     def choose_person_form(self):
         if not self.workspace_active():
@@ -899,16 +933,18 @@ class App:
             self.restore()
 
     def import_derived(self):
-        paths = filedialog.askopenfilenames(filetypes=[("Derived documents", "*.txt *.md *.markdown *.csv")])
+        paths = filedialog.askopenfilenames(filetypes=[("Derived documents", "*.txt *.md *.markdown *.csv *.docx")])
         if paths:
             try:
                 csv_selected = any(Path(path).suffix.lower() == ".csv" for path in paths)
                 if csv_selected and len(paths) != 1:
                     raise ValueError("Import one CSV at a time to preserve row and column structure.")
-                content = [Path(path).read_text(encoding="utf-8-sig") for path in paths]
+                word_selected = all(Path(path).suffix.lower() == ".docx" for path in paths)
+                content = [extract_word(Path(path)) if Path(path).suffix.lower() == ".docx"
+                           else Path(path).read_text(encoding="utf-8-sig") for path in paths]
                 self.replace(self.derived, "\n\n".join(content))
                 self.derived.edit_reset()
-                self.derived_format.set("CSV" if csv_selected else "Text / Markdown")
+                self.derived_format.set("CSV" if csv_selected else "Word" if word_selected else "Text / Markdown")
                 self.reset_restoration()
                 self.status.set(f"Imported {len(paths)} derived text files.")
             except (OSError, ValueError) as error:

@@ -7,7 +7,7 @@ from pathlib import Path
 
 from privapii import TOKEN
 
-TEXT_FORMATS = {"TXT": ".txt", "Markdown": ".md", "CSV": ".csv"}
+TEXT_FORMATS = {"TXT": ".txt", "Markdown": ".md", "CSV": ".csv", "Word": ".docx"}
 NUMBERED = re.compile(r"^([ \t]*)([0-9]{1,3}(?:\.[0-9]{1,3})*)([.)])(?=\s|[^\W\d_]|$)")
 SECTION = re.compile(r"^(?:[IVXLCDM]+|[0-9]{1,3})[ \t]+(?:SKYRIUS|DALIS)(?=$|[ \t:–—-])")
 MARKDOWN_PUNCTUATION = re.compile(r"([\\`*_{}\[\]()<>#|!~])")
