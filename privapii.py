@@ -27,11 +27,11 @@ TOKEN = re.compile(r"\[PRIVAPII_(?:V1|V2_[A-Z][A-Z0-9_]{0,31})_[0-9A-F]{32}_[0-9
 TOKEN_START = re.compile(r"(?:\[\s*PRIVAPII\b|\bPRIVAPII[_-])", re.I)
 DATE_VALUE = r"(?:\d{4}[-.]\d{1,2}[-.]\d{1,2}|\d{1,2}[-./]\d{1,2}[-./]\d{4}|\d{4}\s*m\.\s*\S+\s+\d{1,2}\s*d\.)"
 DOB = re.compile(r"\b(?:gimimo\s+data|gim\.|gimęs|gimusi)\s*[:=]?\s*(" + DATE_VALUE + r")(?!\d)", re.I)
-REFERENCE_NUMBER = r"[0-9]+(?:\.[0-9]+)*"
+REFERENCE_NUMBER = r"[0-9]{1,3}(?:\.[0-9]{1,3})*"
 STRUCTURAL = (
     re.compile(r"^[ \t]*(" + REFERENCE_NUMBER + r")[.)](?=[ \t]|[^\W\d_]|$)", re.M),
     re.compile(r"\b(" + REFERENCE_NUMBER + r")\s*(?:p\.(?!\w)|punkt\w*\b|papunkt\w*\b)", re.I),
-    re.compile(r"\b(?:punkt\w*|papunkt\w*|point|paragraph|section)\s+(" + REFERENCE_NUMBER + r")(?!\w|\.\d|[-/]\d)", re.I),
+    re.compile(r"\b(?:punkt\w*|papunkt\w*|punto|punti|point|paragraph|section)\s+(" + REFERENCE_NUMBER + r")(?!\w|\.\d|[-/]\d)", re.I),
 )
 
 

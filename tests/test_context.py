@@ -27,6 +27,13 @@ class ContextTests(unittest.TestCase):
         token = canonical_token("PRIVAPII_V1_" + "A" * 32)
         self.assertEqual(restore_references(token, {token: "value"}), ("value", 1))
 
+    def test_numbered_references_do_not_override_a_dotted_year_first_date(self):
+        text = "2026.11.16. Documento. Come da punto 1.2."
+        date = Span(0, len("2026.11.16"), "DATE", "nus")
+        start = text.index("1.2")
+        reference = Span(start, start + 3, "ID_MISC", "nus")
+        self.assertEqual(review_spans(text, [date, reference]), [date])
+
     def test_typed_token_for_specific_identifier_with_generic_overlap(self):
         case = Case()
         text = "Identifier"
