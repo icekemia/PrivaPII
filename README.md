@@ -31,6 +31,12 @@ Pseudonymized output uses typed references such as `[PRIVAPII_V2_PER_…]` with 
 
 **Save reviewed export** offers UTF-8 TXT and Markdown. Choose the format and inspect the exact file contents before saving. Markdown documents retain their source markup. For extracted text, Markdown adds recognized Lithuanian section headings and preserves explicit clause numbers as literal labels to prevent renderer renumbering. The formatter preserves token strings and does not reconstruct source PDF tables or complex layouts.
 
+### Linked person forms
+
+In an unlocked workspace, use **Link entity** to confirm that two reviewed person mentions refer to the same person. Enable **Expose linked person IDs** before pseudonymizing if the recipient needs to group the forms across documents. The option is off when opening a workspace. A linked token has the structure `[PRIVAPII_V3_PER_<entity>_<form>_<check>]`. The entity segment is shared by confirmed mentions in the workspace, while the form segment distinguishes their recorded spellings and inflections. The recipient can group by the entity segment and should return the full token unchanged. Enabling this option makes the association visible to the recipient.
+
+**Preview local restoration** uses each token's recorded form. **Choose verified person form** lets you select an occurrence and substitute another recorded form for the same currently linked person. Selections apply only to the current preview and are cleared when the derived text changes. Choose the form that fits the new sentence. PrivaPII offers recorded alternatives and leaves grammatical selection to the reviewer.
+
 ## NUS evaluation
 
 Set up the optional evaluation stack in a virtual environment:
