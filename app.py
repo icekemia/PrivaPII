@@ -13,8 +13,10 @@ from ingestion import extract
 from nus import NusDetector, checkpoint_ready
 from ocr_review import Reviewer, ScanProcessor, export_review
 from pdf_redaction_view import PdfRedactionView
+from pdf_tables import extract_pdf_tables
 from policy import ALL_CATEGORIES, CATEGORY_GROUPS, PROFILES, selected_indices
 from privapii import TOKEN, Case, Span, hybrid, review_spans
+from tabular import detect_table
 from vault import Workspace, new_id
 
 
@@ -31,6 +33,47 @@ class ChoiceDialog(simpledialog.Dialog):
 
     def apply(self):
         self.result = self.field.current()
+
+
+class TableDialog(simpledialog.Dialog):
+    def __init__(self, parent, tables):
+        self.tables = tables
+        super().__init__(parent, "Review PDF table before importing")
+
+    def body(self, master):
+        values = [f"Page {table.page} · Table {table.number} · "
+                  f"{len(table.rows)} rows × {len(table.rows[0])} columns" for table in self.tables]
+        self.selector = ttk.Combobox(master, values=values, state="readonly", width=58)
+        self.selector.pack(fill="x", pady=(0, 6))
+        self.selector.current(0)
+        self.selector.bind("<<ComboboxSelected>>", self.refresh)
+        frame = ttk.Frame(master)
+        frame.pack(fill="both", expand=True)
+        self.grid = ttk.Treeview(frame, show="headings", height=10, selectmode="none")
+        vertical = ttk.Scrollbar(frame, orient="vertical", command=self.grid.yview)
+        horizontal = ttk.Scrollbar(frame, orient="horizontal", command=self.grid.xview)
+        self.grid.configure(xscrollcommand=horizontal.set, yscrollcommand=vertical.set)
+        self.grid.grid(row=0, column=0, sticky="nsew")
+        vertical.grid(row=0, column=1, sticky="ns")
+        horizontal.grid(row=1, column=0, sticky="ew")
+        frame.rowconfigure(0, weight=1)
+        frame.columnconfigure(0, weight=1)
+        self.refresh()
+        return self.selector
+
+    def refresh(self, _event=None):
+        rows = self.tables[self.selector.current()].rows
+        self.grid.delete(*self.grid.get_children())
+        columns = list(range(len(rows[0])))
+        self.grid.configure(columns=columns)
+        for index in columns:
+            self.grid.heading(index, text=f"Column {index + 1}")
+            self.grid.column(index, width=min(180, max(65, 720 // len(columns))), stretch=False)
+        for row in rows:
+            self.grid.insert("", "end", values=row)
+
+    def apply(self):
+        self.result = self.tables[self.selector.current()]
 
 
 class PolicyDialog(simpledialog.Dialog):
@@ -120,6 +163,7 @@ class App:
         bar.pack(fill="x")
         self.detect_button = self.button(bar, "Detect", self.detect)
         self.button(bar, "Import document", self.open_source)
+        self.table_button = self.button(bar, "PDF table", self.open_pdf_table)
         self.scan_button = self.button(bar, "Review scan", self.open_scan)
         self.button(bar, "Mark selected text", self.mark)
         self.button(bar, "Categories and profiles", self.edit_policy)
@@ -374,23 +418,59 @@ class App:
         if imported:
             self.status.set(f"{imported} imported. Detect and review extracted text. {sum_empty} PDF pages had no text.")
 
+    def set_processing(self, active):
+        for button in (self.detect_button, self.scan_button, self.table_button):
+            button.state(["disabled" if active else "!disabled"])
+
+    def open_pdf_table(self):
+        path = filedialog.askopenfilename(filetypes=[("Digital PDF", "*.pdf")])
+        if not path or not self.persist():
+            return
+        workspace = self.case
+        self.set_processing(True)
+        self.status.set("Looking for complete table grids in the PDF…")
+        future = self.worker.submit(extract_pdf_tables, Path(path))
+
+        def poll():
+            if not future.done():
+                self.root.after(100, poll)
+                return
+            self.set_processing(False)
+            if self.case is not workspace:
+                return
+            try:
+                tables = future.result()
+                if not tables:
+                    self.status.set("No complete native-text table grids found in this PDF.")
+                    return
+                table = TableDialog(self.root, tables).result
+                if table is None or not self.persist():
+                    return
+                name = f"{Path(path).stem}_p{table.page}_table{table.number}.tsv"
+                self.load_document(new_id(), name, table.tsv())
+                if self.persist():
+                    self.status.set("Table imported. Detect, review and choose CSV in the export preview.")
+            except Exception as error:
+                self.status.set("PDF table import failed.")
+                messagebox.showerror("PDF table import failed", str(error), parent=self.root)
+
+        self.root.after(100, poll)
+
     def detect(self):
         text = self.value(self.source)
         if not text.strip():
             return
         mode = self.mode.get()
         document_id, workspace = self.document_id, self.case
-        self.detect_button.state(["disabled"])
-        self.scan_button.state(["disabled"])
+        self.set_processing(True)
         self.status.set("Detecting on this device…")
-        future = self.worker.submit(self.compute, text, mode)
+        future = self.worker.submit(self.compute_document, text, mode, self.document_name)
 
         def poll():
             if not future.done():
                 self.root.after(100, poll)
                 return
-            self.detect_button.state(["!disabled"])
-            self.scan_button.state(["!disabled"])
+            self.set_processing(False)
             try:
                 spans = future.result()
             except Exception as error:
@@ -423,8 +503,7 @@ class App:
             return
         source = Path(path)
         workspace = self.case
-        self.detect_button.state(["disabled"])
-        self.scan_button.state(["disabled"])
+        self.set_processing(True)
         self.status.set("Reading the scan with both local OCR engines…")
         future = self.worker.submit(self.read_scan, source)
 
@@ -432,8 +511,7 @@ class App:
             if not future.done():
                 self.root.after(100, poll)
                 return
-            self.detect_button.state(["!disabled"])
-            self.scan_button.state(["!disabled"])
+            self.set_processing(False)
             if self.case is not workspace:
                 return
             try:
@@ -537,6 +615,11 @@ class App:
             self.detector = NusDetector(self.model_dir)
         baseline = self.detector(text)
         return review_spans(text, baseline if mode == "NUS only" else hybrid(text, baseline))
+
+    def compute_document(self, text, mode, name):
+        if Path(name).suffix.lower() == ".tsv":
+            return detect_table(text, lambda cell: self.compute(cell, mode))
+        return self.compute(text, mode)
 
     def show_findings(self, spans, text):
         self.clear_export()
