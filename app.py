@@ -8,7 +8,7 @@ from dataclasses import replace
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
-from export_formats import TEXT_FORMATS, render_export
+from export_formats import TEXT_FORMATS, render_export, restore_csv
 from ingestion import extract
 from nus import NusDetector, checkpoint_ready
 from ocr_review import Reviewer, ScanProcessor, export_review
@@ -93,6 +93,7 @@ class App:
         self.link_person_forms = tk.BooleanVar(value=False)
         self.form_source = None
         self.restore_overrides = {}
+        self.restored_result = None
         self.spans = []
         self.status = tk.StringVar(value="Open or paste a Lithuanian text document.")
         root.title("PrivaPII · Local review")
@@ -155,9 +156,15 @@ class App:
         self.derived = self.text(restore, "Paste the derived text for this case", 12)
         restore_actions = ttk.Frame(restore)
         restore_actions.pack(fill="x")
+        self.derived_format = tk.StringVar(value="Text / Markdown")
+        restore_format = ttk.Combobox(restore_actions, textvariable=self.derived_format,
+                                     state="readonly", values=("Text / Markdown", "CSV"), width=16)
+        restore_format.pack(side="left", padx=4)
+        restore_format.bind("<<ComboboxSelected>>", lambda _: self.reset_restoration())
         self.button(restore_actions, "Import derived text", self.import_derived)
         self.button(restore_actions, "Preview local restoration", self.restore)
         self.button(restore_actions, "Choose verified person form", self.choose_person_form)
+        self.button(restore_actions, "Save restored CSV", self.save_restored_csv)
         self.restored = self.text(restore, "Restored preview · contains original values", 12, readonly=True)
         self.derived.bind("<<Modified>>", self.derived_changed)
         ttk.Label(root, textvariable=self.status, padding=(12, 0, 12, 10)).pack(fill="x")
@@ -208,9 +215,13 @@ class App:
     def derived_changed(self, _event):
         if self.derived.edit_modified():
             self.derived.edit_modified(False)
-            self.form_source = None
-            self.restore_overrides.clear()
-            self.replace(self.restored, "")
+            self.reset_restoration()
+
+    def reset_restoration(self):
+        self.form_source = None
+        self.restore_overrides.clear()
+        self.restored_result = None
+        self.replace(self.restored, "")
 
     def review_current(self):
         text = self.value(self.source)
@@ -293,8 +304,8 @@ class App:
         self.case = workspace
         self.link_person_forms.set(False)
         self.link_checkbox.state(["!disabled"])
-        self.form_source = None
-        self.restore_overrides.clear()
+        self.derived_format.set("Text / Markdown")
+        self.reset_restoration()
         self.profile_name = workspace.active_profile
         categories = set(workspace.profiles.get(self.profile_name, PROFILES["Standard"]))
         if self.profile_name == "Standard" and categories == ALL_CATEGORIES - {"DOB"}:
@@ -313,8 +324,8 @@ class App:
         self.case = Case()
         self.link_person_forms.set(False)
         self.link_checkbox.state(["disabled"])
-        self.form_source = None
-        self.restore_overrides.clear()
+        self.derived_format.set("Text / Markdown")
+        self.reset_restoration()
         self.categories = set(PROFILES["Standard"])
         self.profile_name = "Standard"
         self.document_ids = []
@@ -341,7 +352,7 @@ class App:
             self.status.set("Paste text or import a document.")
 
     def open_source(self):
-        paths = filedialog.askopenfilenames(filetypes=[("Supported documents", "*.txt *.md *.markdown *.pdf")])
+        paths = filedialog.askopenfilenames(filetypes=[("Supported documents", "*.txt *.tsv *.md *.markdown *.pdf")])
         if not paths or not self.persist():
             return
         imported = sum_empty = 0
@@ -439,7 +450,8 @@ class App:
                     return
                 output = export_review(workspace, source, digest, 250, reviews)
                 self.load_document(next(reversed(workspace.documents)))
-                self.preview_text_export(output, source.name,
+                document = workspace.documents[self.document_id]
+                self.preview_text_export(output, source.name, source_text=document["text"],
                                          pdf_review=lambda parent: self.preview_pdf(parent, pages, reviews))
                 self.status.set("OCR review saved to the encrypted workspace.")
             except Exception as error:
@@ -455,7 +467,7 @@ class App:
             self.detector = NusDetector(self.model_dir)
         return self.scan_processor.read(source, 250, self.detector)
 
-    def preview_text_export(self, output, source_name, pdf_review=None):
+    def preview_text_export(self, output, source_name, *, source_text=None, pdf_review=None):
         window = tk.Toplevel(self.root)
         window.title("Review document export")
         window.transient(self.root)
@@ -465,13 +477,18 @@ class App:
         ttk.Label(options, text="Format").pack(side="left", padx=(0, 8))
         default = "Markdown" if Path(source_name).suffix.lower() in {".md", ".markdown"} else "TXT"
         format_name = tk.StringVar(value=default)
-        selector = ttk.Combobox(options, textvariable=format_name, values=list(TEXT_FORMATS),
+        choices = {"TXT": output, "Markdown": render_export(output, "Markdown", source_name)}
+        try:
+            choices["CSV"] = render_export(output, "CSV", source_name, source_text)
+        except ValueError:
+            pass
+        selector = ttk.Combobox(options, textvariable=format_name, values=list(choices),
                                 state="readonly", width=14)
         selector.pack(side="left")
         preview = self.text(window, "Exact file contents · review before sharing", 16, readonly=True)
 
         def refresh(_event=None):
-            self.replace(preview, render_export(output, format_name.get(), source_name))
+            self.replace(preview, choices[format_name.get()])
 
         selector.bind("<<ComboboxSelected>>", refresh)
         refresh()
@@ -661,26 +678,49 @@ class App:
         if self.export_review != (self.value(self.source), selection):
             self.status.set("Source or findings changed. Generate a current export first.")
             return
-        self.preview_text_export(text, self.document_name)
+        self.preview_text_export(text, self.document_name, source_text=self.value(self.source))
 
     def restore(self):
         self.replace(self.restored, "")
+        self.restored_result = None
         text = self.value(self.derived)
         if self.form_source != text:
             self.restore_overrides.clear()
         self.form_source = text
         try:
-            if self.workspace_active():
+            if self.derived_format.get() == "CSV":
+                restorer = self.case.restore if self.workspace_active() else lambda cell, _: self.case.restore(cell)
+                restored, count = restore_csv(text, restorer, self.restore_overrides)
+            elif self.workspace_active():
                 restored, count = self.case.restore(text, self.restore_overrides)
             else:
                 restored, count = self.case.restore(text)
             self.derived.edit_modified(False)
-            if count:
+            if count or self.derived_format.get() == "CSV":
                 self.replace(self.restored, restored)
+                self.restored_result = (text, self.derived_format.get(), restored)
             self.status.set(f"{count} exact references restored. Review attribution and Lithuanian grammar.")
         except ValueError as error:
             self.status.set("Restoration blocked.")
             messagebox.showerror("Restoration blocked", str(error))
+
+    def save_restored_csv(self):
+        if not self.restored_result or self.restored_result[:2] != (self.value(self.derived), "CSV") or self.derived_format.get() != "CSV":
+            self.status.set("Preview the current CSV restoration before saving.")
+            return
+        path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV", "*.csv")])
+        if not path:
+            return
+        if Path(path).suffix.lower() != ".csv":
+            messagebox.showerror("Choose a matching extension", "Use .csv for the restored table.")
+            return
+        try:
+            with Path(path).open("x", encoding="utf-8", newline="") as stream:
+                stream.write(self.restored_result[2])
+        except OSError as error:
+            messagebox.showerror("Save failed", str(error))
+            return
+        self.status.set("Restored CSV saved locally. It contains original values.")
 
     def choose_person_form(self):
         if not self.workspace_active():
@@ -722,15 +762,19 @@ class App:
             self.restore()
 
     def import_derived(self):
-        paths = filedialog.askopenfilenames(filetypes=[("Text and Markdown", "*.txt *.md *.markdown")])
+        paths = filedialog.askopenfilenames(filetypes=[("Derived documents", "*.txt *.md *.markdown *.csv")])
         if paths:
             try:
+                csv_selected = any(Path(path).suffix.lower() == ".csv" for path in paths)
+                if csv_selected and len(paths) != 1:
+                    raise ValueError("Import one CSV at a time to preserve row and column structure.")
                 content = [Path(path).read_text(encoding="utf-8-sig") for path in paths]
                 self.replace(self.derived, "\n\n".join(content))
                 self.derived.edit_reset()
-                self.replace(self.restored, "")
+                self.derived_format.set("CSV" if csv_selected else "Text / Markdown")
+                self.reset_restoration()
                 self.status.set(f"Imported {len(paths)} derived text files.")
-            except (OSError, UnicodeError) as error:
+            except (OSError, ValueError) as error:
                 messagebox.showerror("Derived text import failed", str(error))
 
     def close(self):
