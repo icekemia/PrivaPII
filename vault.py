@@ -101,6 +101,8 @@ class Workspace:
         self.documents[document_id] = {
             "name": name, "text": text, "occurrences": occurrences, "excluded": list(excluded),
         }
+        if previous and previous["text"] == text and "ocr" in previous:
+            self.documents[document_id]["ocr"] = previous["ocr"]
 
     def link(self, document_id, index, entity):
         item = self.documents[document_id]["occurrences"][index]
