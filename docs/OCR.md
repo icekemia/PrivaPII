@@ -20,15 +20,15 @@ The local NUS checkpoint remains in `models/nus/`. The runner takes local model 
 
 ## Review a scan in the app
 
-Open or create a workspace and choose **Review scan**. Select a PDF or image. The OCR engines run in the background, and the review window opens when the local analysis finishes. Click **Finish** to save review evidence and authorized references to the workspace. Inspect the TXT preview and choose **Save new TXT** to export it. The same workspace can restore that file through **Restore derived text**.
+Open or create a workspace and choose **Review scan**. Select a PDF or image. The OCR engines run in the background, and the review window opens when the local analysis finishes. Click **Finish** to save review evidence and authorized references to the workspace. Choose TXT or Markdown, inspect the exact preview and choose **Save reviewed file**. The same workspace can restore that file through **Restore derived text**.
 
-Regions explicitly marked **Pseudonymize verified** stay protected when regenerating a TXT under another category profile. **Toggle exclusion** on the specific finding to retain it intentionally.
+Regions explicitly marked **Pseudonymize verified** stay protected when regenerating a text export under another category profile. **Toggle exclusion** on the specific finding to retain it intentionally.
 
 ### Export a visually redacted PDF
 
 From the reviewed export preview, choose **Review PDF masks**. Regions marked **Mask** or **Pseudonymize verified** start with padded black masks. Inspect the full page with **Fit / full size** and add masks by dragging over any remaining visual content that needs protection. Confirm each page, then choose **Save new redacted PDF**. Drawing or undoing a mask clears that page's confirmation.
 
-The PDF writer creates one lossless image per page from already-masked pixels. The source text layer, annotations, form objects, embedded attachments and source metadata are discarded during reconstruction. The PDF is irreversible and image-only. Use **Save new TXT** for the reversible file paired with the encrypted workspace. Manual page masks apply to the PDF alone. Review every page for sensitive content missed by both engines, including text outside recognized regions.
+The PDF writer creates one lossless image per page from already-masked pixels. The source text layer, annotations, form objects, embedded attachments and source metadata are discarded during reconstruction. The PDF is irreversible and image-only. Use TXT or Markdown for a reversible file paired with the encrypted workspace. Manual page masks apply to the PDF alone. Review every page for sensitive content missed by both engines, including text outside recognized regions.
 
 ## Launch the standalone reviewer
 

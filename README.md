@@ -29,6 +29,8 @@ The **Standard** profile keeps generic dates, times, durations and quantities av
 
 Pseudonymized output uses typed references such as `[PRIVAPII_V2_PER_…]` with opaque identifiers. The encrypted workspace stores the exact value and its source. Keep the reference intact when sharing text for analysis or transformation. Previously exported V1 references remain valid in the workspace that created them.
 
+**Save reviewed export** offers UTF-8 TXT and Markdown. Choose the format and inspect the exact file contents before saving. Markdown documents retain their source markup. For extracted text, Markdown adds recognized Lithuanian section headings and preserves explicit clause numbers as literal labels to prevent renderer renumbering. The formatter preserves token strings and does not reconstruct source PDF tables or complex layouts.
+
 ## NUS evaluation
 
 Set up the optional evaluation stack in a virtual environment:
