@@ -2,7 +2,7 @@
 
 19 November 2026 · Draft for feasibility and release planning
 
-PrivaPII is a free-to-distribute, local-first desktop tool for professionals who work with Lithuanian documents. It prepares reviewed exports for use with agents, LLMs and other tools, then restores approved references locally in derived outputs. The first engineering cycle must establish whether hybrid detection reduces residual PII and whether restoration works across documents without incorrect substitutions.
+PrivaPII is a local-first desktop tool for reviewing and protecting Lithuanian documents. It prepares reviewed exports for use with agents, LLMs and other tools, then restores approved references locally in derived outputs. The first implementation milestone focuses on an observable document-to-restoration workflow with a persistent vault. Later experiments measure whether hybrid detection reduces residual PII. Development and local verification proceed independently of external meetings or access to an independent gold corpus. See the [current implementation and limits](../README.md).
 
 ## Scope and privacy boundary
 

@@ -45,6 +45,12 @@ The paired loop took 1,888.9 seconds on an Intel Core i9-8950HK with approximate
 
 The desktop smoke test transformed two actual NUS documents using the gold spans as a substitute for approved findings. It then combined the pseudonymized documents in reverse order and verified exact restoration to the corresponding originals. This exercises export and restoration independently of detection accuracy. Local source text and restored values were excluded from the report.
 
+## Persistent-workspace milestone
+
+The updated desktop workflow was exercised with real NUS inference, a rule-derived email finding, reviewed names, an explicit link between two inflected forms, a profile that left email visible, and exact restoration after closing and reopening the encrypted workspace.
+
+The updated benchmark runner completed a rules-only diagnostic on all 123 documents and an end-to-end paired instrumentation check on one NUS document. Both configurations in the one-document check had 43 exact matches out of 85 gold spans, 32 boundary errors, 10 complete omissions and 12 spans with residual exposure. The NUS inference took 71.34 seconds, rule evaluation and fusion took 0.067 seconds, and the process peak working set was approximately 1.98 GB. The check validates the updated reporting path. The full paired table above reflects the earlier rules configuration.
+
 ## Reproduction
 
 Use the setup instructions in the [README](../README.md). Run `python benchmark.py --rules-only` for the diagnostic and `python benchmark.py` for the paired comparison. Use `--limit 2` to check the setup on a smaller input.
