@@ -1,0 +1,27 @@
+# PrivaPII dependency and license review
+
+Initial review · 19 November 2026
+
+This inventory records upstream declarations and prototype candidates. Confirm the license files, notices, transitive dependencies and allowed uses for the exact artifacts before adoption or release.
+
+| Component | Evidence and revision | Decision |
+| --- | --- | --- |
+| NUS LT PII application | GitHub reports MIT at the inspected repository. HEAD observed at `5090a43a87eb891f213db9b8069016af17ad8940`. [Source](https://github.com/Faculty-of-Informatics-VDU/nus-lt-pii/tree/5090a43a87eb891f213db9b8069016af17ad8940) | Review the label schema and inference flow. Preserve MIT notices for reused code and review its dependencies separately. |
+| NUS training code | GitHub reports MIT. [Source](https://github.com/Faculty-of-Informatics-VDU/nus-lt-pii-model-training) | Review reproducibility inputs and pin only if adopted. Corpus and checkpoint have separate terms. |
+| NUS checkpoint | Model card references NewGenLTU OpenRAIL-D at checkpoint revision `ab8357ffd9563a8035344e85d6b5f3c6a0c8a8e4`. [Model card](https://huggingface.co/VytautoDidziojoUniversitetas/NUS-LT-PII-xlm-roberta-large/blob/ab8357ffd9563a8035344e85d6b5f3c6a0c8a8e4/README.md) | Candidate reference baseline. Confirm permissible evaluation scope before running it, and confirm real-document processing and bundling separately. Prefer safetensors and local inference with remote code disabled if approved. |
+| NUS corpus | NewGenLTU OpenRAIL-D at `3097156f9841c41e071aeb2f3a7448b2455eb29c`. Upstream documents its use in training and published evaluation. [License](https://huggingface.co/datasets/VytautoDidziojoUniversitetas/NUS-LT-PII-corpus/blob/3097156f9841c41e071aeb2f3a7448b2455eb29c/LICENSE.txt) | Exclude from the independent benchmark. Decide separately whether training use, handling of source data and derivative redistribution are appropriate. |
+| Rizzo PII | GitHub reports MIT. HEAD observed at `2f3fc39d7cf24b7c704265813e8d733626363fc9`. [Source](https://github.com/Rizzo-AI-Academy/rizzo-pii/tree/2f3fc39d7cf24b7c704265813e8d733626363fc9) | Inspect review, PDF and restoration flows. Any reused module needs an independent dependency review and must pass PrivaPII case-isolation and output checks. |
+| mmBERT-base | Model metadata declares MIT at `c5955035435e2bf121cde7f3c8863ef52ff35d82`. [Model card](https://huggingface.co/jhu-clsp/mmBERT-base/blob/c5955035435e2bf121cde7f3c8863ef52ff35d82/README.md) | Primary alternative with separately sourced data. Confirm terms on the base and resulting checkpoint before distribution. |
+| EuroBERT-210m | Model metadata declares Apache-2.0 at `39b51e15dd1f1a06f58b5cbf6a8a188cec60bd0e`. [Model card](https://huggingface.co/EuroBERT/EuroBERT-210m/blob/39b51e15dd1f1a06f58b5cbf6a8a188cec60bd0e/README.md) | Experimental comparator. Measure Lithuanian coverage before investing in training. |
+| Tesseract OCR and Lithuanian language asset | Evaluate engine and `lit.traineddata` independently. Upstream tessdata_fast declares Apache-2.0. [Engine](https://github.com/tesseract-ocr/tesseract) · [Language asset repository](https://github.com/tesseract-ocr/tessdata_fast) | Pin both if adopted. Measure OCR on stamps and tables, and inventory the engine's native dependencies before packaging. |
+
+## NUS release decision
+
+NewGenLTU OpenRAIL-D Attachment A section 10(a) says the artifact may not be used to extract or obtain personal data. The preamble discusses recreation or extraction of personal data from the dataset. Obtain a written clarification from the licensor or a documented legal interpretation covering detection in user-provided documents, and clarify the permitted scope of offline benchmark evaluation. Sections 3 and 5 also address downstream use restrictions, copies of the license, modified-file notices, attribution and permitted purposes. Keep NUS weights, the source corpus and derivatives outside release packages pending review. If terms remain unresolved, proceed with synthetic fixtures and an independently cleared rules baseline, then evaluate an alternative model on separately cleared data. [NewGenLTU OpenRAIL-D](https://huggingface.co/datasets/VytautoDidziojoUniversitetas/NUS-LT-PII-corpus/blob/3097156f9841c41e071aeb2f3a7448b2455eb29c/LICENSE.txt)
+
+## Prototype and device shortlist
+
+- Start the feasibility runner with Python 3.11 on Windows x64. Compare CPU PyTorch for a cleared neural baseline and ONNX Runtime if deployment cost requires it. Pin the runtime and dependencies once the first runnable baseline is selected.
+- Compare PySide6 and a native Windows .NET desktop shell during packaging reconnaissance. Evaluate redistribution requirements, installer size, offline behavior and accessible review of long documents before choosing.
+- The development host has a six-core Intel Core i9-8950HK, approximately 16 GB RAM and Python 3.11.5. Record development timing separately. Qualify performance on a named Windows x64 8 GB CPU-only reference device before claiming the pilot targets.
+- Engineering owns version pinning and the dependency inventory. The license reviewer owns the NUS use decision and release clearance. Before packaging, record artifact hashes, notices, source links and transitive dependencies for the selected installer.
