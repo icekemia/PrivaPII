@@ -1,7 +1,7 @@
 import unittest
 from collections import Counter
 
-from benchmark import score
+from benchmark import score, summarize
 from privapii import Case, Span, TOKEN, hybrid
 
 
@@ -39,6 +39,16 @@ class CaseTests(unittest.TestCase):
         self.assertTrue(score(stats, gold, [Span(1, 2, "PER"), Span(3, 4, "PER")]))
         self.assertFalse(score(stats, gold, [Span(0, 2, "PER"), Span(2, 4, "PER")]))
         self.assertEqual(stats["PER"]["uncovered"], 1)
+
+    def test_benchmark_distinguishes_boundaries_wrong_labels_and_misses(self):
+        gold = {Span(0, 4, "PER"), Span(7, 9, "PER"), Span(11, 13, "PER")}
+        stats = {"PER": Counter(), "LOC": Counter()}
+        score(stats, gold, [Span(0, 3, "PER"), Span(7, 9, "LOC")])
+        report = summarize(stats["PER"])
+        self.assertEqual(report["boundary_errors"], 1)
+        self.assertEqual(report["wrong_label_overlaps"], 1)
+        self.assertEqual(report["complete_omissions"], 1)
+        self.assertEqual(report["false_negatives"], 3)
 
 
 if __name__ == "__main__":
