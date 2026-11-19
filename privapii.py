@@ -65,6 +65,29 @@ def canonical_token(body):
     return f"[{body}_{zlib.crc32(body.encode('ascii')):08X}]"
 
 
+def merged_ranges(text, accepted):
+    if TOKEN_START.search(text):
+        raise ValueError("Source contains reserved PrivaPII token syntax.")
+    ranges = []
+    for span in sorted(set(accepted)):
+        if not 0 <= span.start < span.end <= len(text):
+            raise ValueError("Invalid review span.")
+        if ranges and span.start < ranges[-1][1]:
+            ranges[-1] = (ranges[-1][0], max(span.end, ranges[-1][1]))
+        else:
+            ranges.append((span.start, span.end))
+    return ranges
+
+
+def restore_references(text, references):
+    matches = list(TOKEN.finditer(text))
+    if TOKEN_START.search(TOKEN.sub("", text)):
+        raise ValueError("Malformed or truncated PrivaPII token.")
+    if any(match.group() not in references for match in matches):
+        raise ValueError("Unknown, corrupted or foreign token.")
+    return TOKEN.sub(lambda match: references[match.group()], text), len(matches)
+
+
 class Case:
     """Ephemeral vault. Each export creates independent surface-form references."""
 
@@ -72,20 +95,10 @@ class Case:
         self._batches = {}
 
     def transform(self, text, accepted, *, redact=False):
-        if TOKEN_START.search(text):
-            raise ValueError("Source contains reserved PrivaPII token syntax.")
-        ranges = []
-        for span in sorted(set(accepted)):
-            if not 0 <= span.start < span.end <= len(text):
-                raise ValueError("Invalid review span.")
-            if ranges and span.start < ranges[-1][1]:
-                ranges[-1] = (ranges[-1][0], max(span.end, ranges[-1][1]))
-            else:
-                ranges.append((span.start, span.end))
         mapping = {}
         parts = []
         cursor = 0
-        for start, end in ranges:
+        for start, end in merged_ranges(text, accepted):
             parts.append(text[cursor:start])
             token = "[REDACTED]"
             if not redact:
@@ -100,9 +113,4 @@ class Case:
         return "".join(parts)
 
     def restore(self, text):
-        matches = list(TOKEN.finditer(text))
-        if TOKEN_START.search(TOKEN.sub("", text)):
-            raise ValueError("Malformed or truncated PrivaPII token.")
-        if any(match.group() not in self._batches for match in matches):
-            raise ValueError("Unknown, corrupted or foreign token.")
-        return TOKEN.sub(lambda match: self._batches[match.group()], text), len(matches)
+        return restore_references(text, self._batches)
