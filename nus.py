@@ -2,9 +2,18 @@
 
 from privapii import Span
 
+CHECKPOINT_BYTES = 2_235_612_716
+
+
+def checkpoint_ready(model_dir):
+    weights = model_dir / "model.safetensors"
+    return weights.is_file() and weights.stat().st_size == CHECKPOINT_BYTES
+
 
 class NusDetector:
     def __init__(self, model_dir):
+        if not checkpoint_ready(model_dir):
+            raise ValueError("The pinned NUS checkpoint is missing or incomplete.")
         import torch
         from transformers import AutoModelForTokenClassification, AutoTokenizer, pipeline
 

@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from nus import NusDetector
+from nus import NusDetector, checkpoint_ready
 from privapii import Case, Span, hybrid
 
 
@@ -36,7 +36,7 @@ class App:
         self.button(bar, "Open TXT / Markdown", self.open_source)
         self.button(bar, "Mark selected text", self.mark)
         self.button(bar, "New case", self.new_case)
-        self.use_nus = tk.BooleanVar(value=(model_dir / "model.safetensors").is_file())
+        self.use_nus = tk.BooleanVar(value=checkpoint_ready(model_dir))
         ttk.Checkbutton(bar, text="Use local NUS checkpoint", variable=self.use_nus).pack(side="right")
         panes = ttk.Panedwindow(review, orient="horizontal")
         panes.pack(fill="both", expand=True, pady=8)
