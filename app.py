@@ -11,7 +11,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 from ingestion import extract
 from nus import NusDetector, checkpoint_ready
 from policy import ALL_CATEGORIES, CATEGORY_GROUPS, PROFILES, selected_indices
-from privapii import Case, Span, hybrid
+from privapii import Case, Span, hybrid, review_spans
 from vault import Workspace, new_id
 
 
@@ -81,7 +81,7 @@ class App:
         self.document_name = "Pasted text"
         self.document_ids = []
         self.excluded = set()
-        self.categories = set(ALL_CATEGORIES)
+        self.categories = set(PROFILES["Standard"])
         self.profile_name = "Standard"
         self.session_profiles = dict(PROFILES)
         self.snapshot = None
@@ -136,7 +136,7 @@ class App:
         controls = ttk.Frame(review)
         controls.pack(fill="x")
         self.button(controls, "Pseudonymize", lambda: self.transform(False))
-        self.button(controls, "Redact", lambda: self.transform(True))
+        self.button(controls, "Redact irreversibly", lambda: self.transform(True))
         self.button(controls, "Save reviewed export", self.save_export)
         self.export = self.text(review, "Export preview · review before sharing", 8, readonly=True)
         self.derived = self.text(restore, "Paste the derived text for this case", 12)
@@ -276,7 +276,10 @@ class App:
             return
         self.case = workspace
         self.profile_name = workspace.active_profile
-        self.categories = set(workspace.profiles.get(self.profile_name, PROFILES["Standard"]))
+        categories = set(workspace.profiles.get(self.profile_name, PROFILES["Standard"]))
+        if self.profile_name == "Standard" and categories == ALL_CATEGORIES - {"DOB"}:
+            categories = set(PROFILES["Standard"])
+        self.categories = categories
         self.workspace_label.set(f"Unlocked · {workspace.path.name}")
         self.replace(self.derived, "")
         self.derived.edit_reset()
@@ -288,7 +291,7 @@ class App:
         if not self.workspace_active() or not self.persist():
             return
         self.case = Case()
-        self.categories = set(ALL_CATEGORIES)
+        self.categories = set(PROFILES["Standard"])
         self.profile_name = "Standard"
         self.document_ids = []
         self.documents.configure(values=())
@@ -372,11 +375,11 @@ class App:
 
     def compute(self, text, mode):
         if mode == "Rules only":
-            return hybrid(text)
+            return review_spans(text, hybrid(text))
         if self.detector is None:
             self.detector = NusDetector(self.model_dir)
         baseline = self.detector(text)
-        return baseline if mode == "NUS only" else hybrid(text, baseline)
+        return review_spans(text, baseline if mode == "NUS only" else hybrid(text, baseline))
 
     def show_findings(self, spans, text):
         self.clear_export()

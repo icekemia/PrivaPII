@@ -25,6 +25,10 @@ The prototype exports plain text. The desktop PDF import extracts the text layer
 
 NUS finding scores describe model confidence and have not been calibrated as probabilities of correctness. Rule findings report the format or checksum check performed. Review the extraction and the selected findings for omissions before exporting.
 
+The **Standard** profile keeps generic dates, times, durations and quantities available for analysis. Explicit Lithuanian birth-date wording yields a separate protected category. Use **Strict** or a custom profile when dates and quantities in the surrounding context could identify someone. Automatic review preserves recognized list numbering and point references. A reviewer can still mark specific text manually when context calls for protection.
+
+Pseudonymized output uses typed references such as `[PRIVAPII_V2_PER_…]` with opaque identifiers. The encrypted workspace stores the exact value and its source. Keep the reference intact when sharing text for analysis or transformation. Previously exported V1 references remain valid in the workspace that created them.
+
 ## NUS evaluation
 
 Set up the optional evaluation stack in a virtual environment:

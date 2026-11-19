@@ -11,7 +11,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
-from privapii import Span, canonical_token, merged_ranges, restore_references
+from privapii import Span, canonical_token, merged_ranges, restore_references, token_prefix
 
 
 def new_id():
@@ -138,14 +138,15 @@ class Workspace:
                 entity = next(iter(entities)) if len(entities) == 1 else None
                 value = text[start:end]
                 key = [entity, value] if entity else [document_id, provenance, value]
+                prefix = token_prefix(spans, start, end)
                 for binding, record in (self.references | pending).items():
-                    if record["key"] == key:
+                    if binding.startswith("[" + prefix) and record["key"] == key:
                         token = binding
                         break
                 else:
-                    token = canonical_token("PRIVAPII_V1_" + secrets.token_hex(16).upper())
+                    token = canonical_token(prefix + secrets.token_hex(16).upper())
                     while token in self.references or token in pending:
-                        token = canonical_token("PRIVAPII_V1_" + secrets.token_hex(16).upper())
+                        token = canonical_token(prefix + secrets.token_hex(16).upper())
                 record = pending.get(token, self.references.get(token, {}))
                 sources = record.get("sources", [])
                 origin = [document_id, provenance]

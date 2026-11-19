@@ -23,8 +23,16 @@ PERSONAL = re.compile(r"(?<!\w)[1-6][0-9]{10}(?!\w)")
 IBAN = re.compile(r"(?<!\w)LT[0-9]{2}(?:[ -]?[0-9]{4}){4}(?!\w)", re.I)
 PVM = re.compile(r"(?<!\w)LT[ \t]*(?:[0-9]{12}|[0-9]{9})(?!\w)", re.I)
 COMPANY = re.compile(r"\b(?:įmonės|įstaigos|juridinio asmens|organizacijos)\s+kodas\s*[:=]?\s*([0-9]{9})(?!\w)", re.I)
-TOKEN = re.compile(r"\[PRIVAPII_V1_[0-9A-F]{32}_[0-9A-F]{8}\]")
+TOKEN = re.compile(r"\[PRIVAPII_(?:V1|V2_[A-Z][A-Z0-9_]{0,31})_[0-9A-F]{32}_[0-9A-F]{8}\]")
 TOKEN_START = re.compile(r"(?:\[\s*PRIVAPII\b|\bPRIVAPII[_-])", re.I)
+DATE_VALUE = r"(?:\d{4}[-.]\d{1,2}[-.]\d{1,2}|\d{1,2}[-./]\d{1,2}[-./]\d{4}|\d{4}\s*m\.\s*\S+\s+\d{1,2}\s*d\.)"
+DOB = re.compile(r"\b(?:gimimo\s+data|gim\.|gimęs|gimusi)\s*[:=]?\s*(" + DATE_VALUE + r")(?!\d)", re.I)
+REFERENCE_NUMBER = r"[0-9]+(?:\.[0-9]+)*"
+STRUCTURAL = (
+    re.compile(r"^[ \t]*(" + REFERENCE_NUMBER + r")[.)](?=[ \t]|[^\W\d_]|$)", re.M),
+    re.compile(r"\b(" + REFERENCE_NUMBER + r")\s*(?:p\.(?!\w)|punkt\w*\b|papunkt\w*\b)", re.I),
+    re.compile(r"\b(?:punkt\w*|papunkt\w*|point|paragraph|section)\s+(" + REFERENCE_NUMBER + r")(?!\w|\.\d|[-/]\d)", re.I),
+)
 
 
 def valid_personal_code(value):
@@ -81,8 +89,45 @@ def hybrid(text, baseline=()):
     return sorted(spans.values())
 
 
+def review_spans(text, findings):
+    """Add explicit birth dates and remove automatic findings over document references."""
+    structural = []
+    for pattern in STRUCTURAL:
+        for match in pattern.finditer(text):
+            start, end = match.span(1)
+            if end < len(text) and text[end:end + 1] in {".", ")"}:
+                end += 1
+            structural.append((start, end))
+    birth_dates = [Span(*match.span(1), "DOB", "context-rule") for match in DOB.finditer(text)]
+    retained = []
+    for span in findings:
+        start, end = span.start, span.end
+        while start < end and text[start].isspace():
+            start += 1
+        while end > start and text[end - 1].isspace():
+            end -= 1
+        if span.label in {"VALUE", "ID_MISC", "NUM_CAR", "DATE"} and any(
+            left <= start < end <= right for left, right in structural
+        ):
+            continue
+        if span.label == "DATE" and any(start < birth.end and end > birth.start for birth in birth_dates):
+            continue
+        retained.append(span)
+    return sorted(set(retained + birth_dates))
+
+
 def canonical_token(body):
     return f"[{body}_{zlib.crc32(body.encode('ascii')):08X}]"
+
+
+def token_prefix(spans, start, end):
+    labels = {span.label for span in spans if start <= span.start and span.end <= end}
+    structured = labels & {"DOB", "ID_PER", "EMAIL", "IBAN", "PVM", "COMPANY_ID", "NUM_PHONE"}
+    chosen = structured if labels - structured <= {"ID_MISC", "VALUE", "MISC"} and structured else labels
+    label = next(iter(chosen)) if len(chosen) == 1 else "MULTI"
+    if not re.fullmatch(r"[A-Z][A-Z0-9_]{0,31}", label):
+        label = "MANUAL"
+    return f"PRIVAPII_V2_{label}_"
 
 
 def merged_ranges(text, accepted):
@@ -115,6 +160,7 @@ class Case:
         self._batches = {}
 
     def transform(self, text, accepted, *, redact=False):
+        accepted = tuple(accepted)
         mapping = {}
         parts = []
         cursor = 0
@@ -122,9 +168,10 @@ class Case:
             parts.append(text[cursor:start])
             token = "[REDACTED]"
             if not redact:
-                token = canonical_token("PRIVAPII_V1_" + secrets.token_hex(16).upper())
+                prefix = token_prefix(accepted, start, end)
+                token = canonical_token(prefix + secrets.token_hex(16).upper())
                 while token in self._batches or token in mapping:
-                    token = canonical_token("PRIVAPII_V1_" + secrets.token_hex(16).upper())
+                    token = canonical_token(prefix + secrets.token_hex(16).upper())
                 mapping[token] = text[start:end]
             parts.append(token)
             cursor = end
