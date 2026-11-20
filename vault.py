@@ -121,6 +121,14 @@ class Workspace:
         return result
 
     def transform(self, document_id, selected, *, redact=False, link_person_forms=False):
+        output, pending = self.plan_transform(document_id, selected, redact=redact,
+                                              link_person_forms=link_person_forms)
+        self.commit_references(pending)
+        return output
+
+    def plan_transform(self, document_id, selected, *, redact=False, link_person_forms=False,
+                       staged=None):
+        references = self.references | (staged or {})
         document = self.documents[document_id]
         text = document["text"]
         items = [document["occurrences"][index] for index in selected]
@@ -142,21 +150,24 @@ class Workspace:
                 if (link_person_forms and entity and prefix == "PRIVAPII_V2_PER_"
                         and all(item["entity"] == entity for item in items if item["id"] in provenance)):
                     prefix = f"PRIVAPII_V3_PER_{entity.upper()}_"
-                for binding, record in (self.references | pending).items():
+                for binding, record in (references | pending).items():
                     if binding.startswith("[" + prefix) and record["key"] == key:
                         token = binding
                         break
                 else:
                     token = canonical_token(prefix + secrets.token_hex(16).upper())
-                    while token in self.references or token in pending:
+                    while token in references or token in pending:
                         token = canonical_token(prefix + secrets.token_hex(16).upper())
-                record = pending.get(token, self.references.get(token, {}))
+                record = pending.get(token, references.get(token, {}))
                 sources = record.get("sources", [])
                 origin = [document_id, provenance]
                 pending[token] = {"key": key, "value": value, "sources": sources if origin in sources else sources + [origin]}
             parts.append(token)
             cursor = end
         parts.append(text[cursor:])
+        return "".join(parts), pending
+
+    def commit_references(self, pending):
         previous = self.references
         self.references = previous | pending
         try:
@@ -164,7 +175,6 @@ class Workspace:
         except Exception:
             self.references = previous
             raise
-        return "".join(parts)
 
     def current_person_entity(self, record):
         key = record["key"]

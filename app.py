@@ -9,6 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
+from batch_export_view import BatchExportView
 from export_formats import TEXT_FORMATS, parse_csv, render_export, restore_csv, table_rows
 from export_review import inspect_export, retained_identifiers, retained_transcriptions
 from ingestion import extract
@@ -208,6 +209,7 @@ class App:
         self.button(controls, "Pseudonymize", lambda: self.transform(False))
         self.button(controls, "Redact irreversibly", lambda: self.transform(True))
         self.button(controls, "Save reviewed export", self.save_export)
+        self.button(controls, "Export workspace ZIP", self.export_workspace)
         self.link_checkbox = ttk.Checkbutton(
             controls, text="Expose linked person IDs", variable=self.link_person_forms,
             command=self.clear_export, state="disabled",
@@ -881,6 +883,21 @@ class App:
             return
         retained = retained_identifiers(source, self.spans, indices)
         self.preview_text_export(text, self.document_name, source_text=source, retained=retained)
+
+    def export_workspace(self):
+        if not self.workspace_active():
+            self.status.set("Open a persistent workspace before creating an archive.")
+            return
+        if not self.persist():
+            return
+        if not self.case.documents:
+            self.status.set("Import a document before creating an archive.")
+            return
+        view = BatchExportView(self.root, self.case, self.categories, self.link_person_forms.get())
+        view.window.grab_set()
+        self.root.wait_window(view.window)
+        if view.saved:
+            self.status.set("Reviewed workspace archive saved.")
 
     def restore(self):
         self.replace(self.restored, "")
