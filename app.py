@@ -18,6 +18,7 @@ from ocr import raster_pages
 from ocr_review import Reviewer, ScanProcessor, export_review
 from pdf_redaction_view import PdfRedactionView
 from pdf_tables import extract_pdf_tables
+from person_review_view import PersonReviewView
 from policy import ALL_CATEGORIES, CATEGORY_GROUPS, PROFILES, selected_indices
 from privapii import TOKEN, Case, Span, hybrid, review_spans
 from raster_tables import find_grids
@@ -210,6 +211,7 @@ class App:
         self.button(controls, "Redact irreversibly", lambda: self.transform(True))
         self.button(controls, "Save reviewed export", self.save_export)
         self.button(controls, "Export workspace ZIP", self.export_workspace)
+        self.button(controls, "Review people", self.review_people)
         self.link_checkbox = ttk.Checkbutton(
             controls, text="Expose linked person IDs", variable=self.link_person_forms,
             command=self.clear_export, state="disabled",
@@ -898,6 +900,20 @@ class App:
         self.root.wait_window(view.window)
         if view.saved:
             self.status.set("Reviewed workspace archive saved.")
+
+    def review_people(self):
+        if not self.workspace_active():
+            self.status.set("Open a persistent workspace to review people across documents.")
+            return
+        if not self.persist():
+            return
+        view = PersonReviewView(self.root, self.case)
+        view.window.grab_set()
+        self.root.wait_window(view.window)
+        if view.changed:
+            if self.document_id in self.case.documents:
+                self.load_document(self.document_id)
+            self.status.set("Person links saved. Regenerate exports to include the updated links.")
 
     def restore(self):
         self.replace(self.restored, "")

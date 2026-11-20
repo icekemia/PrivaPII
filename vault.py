@@ -120,6 +120,27 @@ class Workspace:
                     result.setdefault(item["entity"], f'{value} · {document["name"]}')
         return result
 
+    def link_people(self, selected, target):
+        """Apply explicit identity decisions to selected person occurrences."""
+        people = {item["id"]: item for document in self.documents.values()
+                  for item in document["occurrences"] if item["label"] == "PER"}
+        selected = set(selected)
+        if target not in people or not selected or not selected <= people.keys():
+            raise ValueError("Choose saved person mentions within this workspace.")
+        entity = people[target]["entity"]
+        previous = {key: people[key]["entity"] for key in selected if people[key]["entity"] != entity}
+        if not previous:
+            return 0
+        for key in previous:
+            people[key]["entity"] = entity
+        try:
+            self.save()
+        except Exception:
+            for key, original in previous.items():
+                people[key]["entity"] = original
+            raise
+        return len(previous)
+
     def transform(self, document_id, selected, *, redact=False, link_person_forms=False):
         output, pending = self.plan_transform(document_id, selected, redact=redact,
                                               link_person_forms=link_person_forms)
