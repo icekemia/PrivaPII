@@ -10,6 +10,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from export_formats import TEXT_FORMATS, parse_csv, render_export, restore_csv, table_rows
+from export_review import inspect_export, retained_identifiers, retained_transcriptions
 from ingestion import extract
 from nus import NusDetector, checkpoint_ready
 from ocr import raster_pages
@@ -600,7 +601,9 @@ class App:
         output = export_review(workspace, source, digest, 250, reviews)
         self.load_document(next(reversed(workspace.documents)))
         document = workspace.documents[self.document_id]
+        retained = retained_transcriptions(item.verified for item in reviews if item.action == "keep")
         self.preview_text_export(output, document["name"], source_text=document["text"],
+                                 retained=retained,
                                  pdf_review=lambda parent: self.preview_pdf(parent, pages, reviews))
         self.status.set("OCR review saved to the encrypted workspace.")
 
@@ -614,11 +617,11 @@ class App:
         self.ready_scan_engines()
         return self.scan_processor.read(source, 250, self.detector)
 
-    def preview_text_export(self, output, source_name, *, source_text=None, pdf_review=None):
+    def preview_text_export(self, output, source_name, *, source_text=None, retained=(), pdf_review=None):
         window = tk.Toplevel(self.root)
         window.title("Review document export")
         window.transient(self.root)
-        window.geometry("820x540")
+        window.geometry("860x650")
         options = ttk.Frame(window, padding=8)
         options.pack(fill="x")
         ttk.Label(options, text="Format").pack(side="left", padx=(0, 8))
@@ -636,17 +639,52 @@ class App:
         selector = ttk.Combobox(options, textvariable=format_name, values=list(choices),
                                 state="readonly", width=14)
         selector.pack(side="left")
+        summary = ttk.Label(options)
+        summary.pack(side="left", padx=12)
         preview = self.text(window, "Exact file contents · review before sharing", 16, readonly=True)
+        review = ttk.LabelFrame(window, text="Local structured identifier check", padding=6)
+        review.pack(fill="x", padx=8, pady=6)
+        findings = ttk.Treeview(review, columns=("category", "decision", "value"),
+                               show="headings", selectmode="none", height=4)
+        for column, title, width in (("category", "Category", 115), ("decision", "Review", 160),
+                                     ("value", "Visible value", 530)):
+            findings.heading(column, text=title)
+            findings.column(column, width=width, stretch=column == "value")
+        scroll = ttk.Scrollbar(review, orient="vertical", command=findings.yview)
+        findings.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+        findings.pack(fill="x", expand=True)
+        ttk.Label(window, text="Checks structured values only. Review names, addresses and context in the preview.",
+                  padding=(8, 0, 8, 4)).pack(anchor="w")
 
-        def refresh(_event=None):
-            self.replace(preview, choices[format_name.get()])
-
-        selector.bind("<<ComboboxSelected>>", refresh)
-        refresh()
         bar = ttk.Frame(window, padding=8)
         bar.pack(fill="x")
 
+        def refresh(_event=None):
+            kind = format_name.get()
+            rendered = choices[kind]
+            self.replace(preview, rendered)
+            findings.delete(*findings.get_children())
+            try:
+                tokens, residuals = inspect_export(rendered, kind, output, retained)
+            except ValueError as error:
+                summary.configure(text=str(error))
+                save_button.state(["disabled"])
+                return False
+            save_button.state(["!disabled"])
+            unreviewed = sum(not item.intentionally_retained for item in residuals)
+            summary.configure(text=f"{tokens} tokens · {unreviewed} need review · "
+                                   f"{len(residuals) - unreviewed} retained")
+            for item in residuals:
+                state = "Retained by review" if item.intentionally_retained else "Needs review"
+                findings.insert("", "end", values=(item.category, state, item.value))
+            return True
+
+        selector.bind("<<ComboboxSelected>>", refresh)
+
         def save():
+            if not refresh():
+                return
             kind = format_name.get()
             extension = TEXT_FORMATS[kind]
             path = filedialog.asksaveasfilename(parent=window, defaultextension=extension,
@@ -661,20 +699,21 @@ class App:
             try:
                 if kind == "Word":
                     with Path(path).open("xb") as stream:
-                        write_word(stream, self.value(preview), word_rows)
+                        write_word(stream, choices[kind], word_rows)
                 else:
                     with Path(path).open("x", encoding="utf-8", newline="") as stream:
-                        stream.write(self.value(preview))
+                        stream.write(choices[kind])
             except (OSError, UnicodeError) as error:
                 messagebox.showerror("Save failed", str(error), parent=window)
                 return
             self.status.set(f"Reviewed {kind} export saved.")
             window.destroy()
 
-        self.button(bar, "Save reviewed file", save)
+        save_button = self.button(bar, "Save reviewed file", save)
         if pdf_review is not None:
             self.button(bar, "Review PDF masks", lambda: pdf_review(window))
         self.button(bar, "Close preview", window.destroy)
+        refresh()
         window.grab_set()
         self.root.wait_window(window)
 
@@ -834,11 +873,14 @@ class App:
         text = self.value(self.export)
         if not text:
             return
-        selection = [self.spans[index] for index in selected_indices(self.spans, self.categories, self.excluded)]
-        if self.export_review != (self.value(self.source), selection):
+        source = self.value(self.source)
+        indices = selected_indices(self.spans, self.categories, self.excluded)
+        selection = [self.spans[index] for index in indices]
+        if self.export_review != (source, selection):
             self.status.set("Source or findings changed. Generate a current export first.")
             return
-        self.preview_text_export(text, self.document_name, source_text=self.value(self.source))
+        retained = retained_identifiers(source, self.spans, indices)
+        self.preview_text_export(text, self.document_name, source_text=source, retained=retained)
 
     def restore(self):
         self.replace(self.restored, "")
