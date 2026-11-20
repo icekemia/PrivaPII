@@ -33,6 +33,12 @@ Pseudonymized output uses typed references such as `[PRIVAPII_V2_PER_…]` with 
 
 The preview checks the selected text format locally for structured identifiers that are still visible, including email, phone numbers, Lithuanian personal and company codes, VAT numbers and IBANs. It distinguishes values retained by review from candidates needing attention, and reports the count of intact restoration tokens. Names, addresses, context and visual PDF regions still require review in the respective preview.
 
+### Workspace archives
+
+In an unlocked workspace, choose **Export workspace ZIP**, select the documents and choose TXT or Markdown. **Prepare previews** applies the active profile to saved findings and occurrence exclusions. Inspect and confirm each file in the dropdown. If a file needs changes, close the archive preview, update that document and prepare the archive again. Changing the selection or format clears prior confirmations.
+
+The ZIP contains only the reviewed exports, named `document-001`, `document-002` and so on. The original filenames and workspace stay local. Token bindings are committed to the vault before the archive contents are written. Extract returned text or Markdown files and import them in **Restore derived text** to restore them from the same workspace.
+
 **CSV** is also available when both the source and the protected output contain one complete rectangular Markdown pipe table or one tab-separated table. The preview checks row and column counts and token order. The Markdown table must have an explicit header separator and simple cells.
 
 Use **Import table → Digital PDF** or **Import table → Word document** to extract a complete rectangular table. Select the table, inspect the grid, then import it as a separate TSV document. Native PDF tables need visible ruling lines and a text layer. The import normalizes whitespace within cells. Detection runs cell by cell. Under the Standard profile, an explicit birth-date column such as `Gimimo data` is protected, while ordinary dates in columns such as `Išdavimo data` remain visible.
