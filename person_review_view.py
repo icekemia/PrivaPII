@@ -15,6 +15,7 @@ class PersonReviewView:
         self.window.transient(parent)
         self.workspace = workspace
         self.target = None
+        self.scope = None
         self.changed = False
         self.items = {}
         controls = ttk.Frame(self.window, padding=8)
@@ -24,10 +25,12 @@ class PersonReviewView:
         field = ttk.Entry(controls, textvariable=self.query, width=30)
         field.pack(side="left", padx=8)
         self.candidates_only = tk.BooleanVar()
-        ttk.Checkbutton(controls, text="Same-spelling candidates only", variable=self.candidates_only,
+        ttk.Checkbutton(controls, text="Candidates only", variable=self.candidates_only,
                         command=self.refresh).pack(side="left")
+        ttk.Button(controls, text="Show candidate matches", command=self.show_matches).pack(side="left", padx=6)
+        ttk.Button(controls, text="Clear match view", command=self.clear_matches).pack(side="left")
         self.query.trace_add("write", lambda *_: self.refresh())
-        ttk.Label(self.window, text="Identical names can belong to different people. Check document context before linking.",
+        ttk.Label(self.window, text="Spelling and inflection matches are suggestions. Check the source context before linking.",
                   padding=(8, 0, 8, 6)).pack(anchor="w")
         frame = ttk.Frame(self.window, padding=(8, 0, 8, 8))
         frame.pack(fill="both", expand=True)
@@ -35,7 +38,7 @@ class PersonReviewView:
         self.table = ttk.Treeview(frame, columns=columns, show="headings", selectmode="extended")
         for key, label, width in zip(
                 columns, ("Person mention", "Document", "Entity ID", "Candidate", "Source context"),
-                (170, 160, 95, 130, 457)):
+                (170, 160, 95, 160, 427)):
             self.table.heading(key, text=label)
             self.table.column(key, width=width, stretch=key == "context")
         scroll = ttk.Scrollbar(frame, orient="vertical", command=self.table.yview)
@@ -59,12 +62,19 @@ class PersonReviewView:
         keywords = [normalized(piece) for piece in self.query.get().split("|") if piece.strip()]
         visible = 0
         for key, item in self.items.items():
-            if self.candidates_only.get() and not item.spelling_candidate:
+            if self.scope is not None and key not in self.scope:
+                continue
+            if self.candidates_only.get() and not item.candidate_ids:
                 continue
             index_text = normalized(item.value + " " + item.document_name)
             if keywords and not any(term in index_text for term in keywords):
                 continue
-            status = "Same spelling" if item.spelling_candidate else ""
+            reasons = []
+            if item.spelling_candidate:
+                reasons.append("Same spelling")
+            if item.inflection_candidate:
+                reasons.append("Possible inflection")
+            status = " / ".join(reasons)
             self.table.insert("", "end", iid=key, values=(
                 item.value, item.document_name, item.entity_id[:8], status, item.context,
             ))
@@ -72,6 +82,23 @@ class PersonReviewView:
                 self.table.selection_add(key)
             visible += 1
         self.update_status(visible)
+
+    def show_matches(self):
+        selected = self.table.selection()
+        if len(selected) != 1:
+            self.status.set("Select one mention to see its candidate matches.")
+            return
+        item = self.items[selected[0]]
+        if not item.candidate_ids:
+            self.status.set("No spelling or inflection candidates for the selected mention.")
+            return
+        self.scope = {item.occurrence_id, *item.candidate_ids}
+        self.candidates_only.set(False)
+        self.query.set("")
+
+    def clear_matches(self):
+        self.scope = None
+        self.refresh()
 
     def update_status(self, visible=None):
         count = len(self.table.get_children()) if visible is None else visible

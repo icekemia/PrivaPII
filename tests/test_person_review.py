@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from person_review import person_mentions
+from person_review import name_variants, person_mentions
 from privapii import Span
 from vault import Workspace
 
@@ -20,6 +20,8 @@ class PersonReviewTests(unittest.TestCase):
             first, form, homonym = mentions
             self.assertTrue(first.spelling_candidate and homonym.spelling_candidate)
             self.assertFalse(form.spelling_candidate)
+            self.assertTrue(form.inflection_candidate)
+            self.assertEqual(set(form.candidate_ids), {first.occurrence_id, homonym.occurrence_id})
             self.assertEqual(len({item.entity_id for item in mentions}), 3)
             previous = vault.transform("form", [0], link_person_forms=True)
             self.assertEqual(vault.link_people([form.occurrence_id], first.occurrence_id), 1)
@@ -30,6 +32,14 @@ class PersonReviewTests(unittest.TestCase):
             self.assertEqual(reopened.restore(previous), ("Jono Petraičio", 1))
             export = reopened.transform("form", [0], link_person_forms=True)
             self.assertTrue(export.startswith(f"[PRIVAPII_V3_PER_{first.entity_id.upper()}_"))
+
+    def test_candidates_require_both_parts_in_the_same_case(self):
+        self.assertEqual(name_variants("jonas petraitis"),
+                         ("jono petraičio", "jonui petraičiui", "joną petraitį"))
+        self.assertEqual(name_variants("rūta mintytė"),
+                         ("rūtos mintytės", "rūtai mintytei", "rūtą mintytę"))
+        self.assertNotIn("jono petraičiui", name_variants("jonas petraitis"))
+        self.assertEqual(name_variants("j. petraitis"), ())
 
     def test_rejects_unknown_or_non_person_occurrences_before_mutation(self):
         with tempfile.TemporaryDirectory() as directory:
