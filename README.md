@@ -55,6 +55,8 @@ Choose **Word** in the export preview to build a fresh `.docx` from reviewed tex
 
 ### Linked person forms
 
+Choose **Review people** in an unlocked workspace to see saved person mentions, source context and their entity IDs together. Use **Same-spelling candidates only** to find identical spellings currently assigned to different entities. Search by name fragment or document name to compare inflected forms. Set one mention as the target, select the other mentions and confirm the link. The target stays selected as the destination while you filter. Identical spellings are only review candidates. Regenerate exports to expose the updated links.
+
 In an unlocked workspace, use **Link entity** to confirm that two reviewed person mentions refer to the same person. Enable **Expose linked person IDs** before pseudonymizing if the recipient needs to group the forms across documents. The option is off when opening a workspace. A linked token has the structure `[PRIVAPII_V3_PER_<entity>_<form>_<check>]`. The entity segment is shared by confirmed mentions in the workspace, while the form segment distinguishes their recorded spellings and inflections. The recipient can group by the entity segment and should return the full token unchanged. Enabling this option makes the association visible to the recipient.
 
 **Preview local restoration** uses each token's recorded form. **Choose verified person form** lets you select an occurrence and substitute another recorded form for the same currently linked person. Selections apply only to the current preview and are cleared when the derived text changes. Choose the form that fits the new sentence. PrivaPII offers recorded alternatives and leaves grammatical selection to the reviewer.
