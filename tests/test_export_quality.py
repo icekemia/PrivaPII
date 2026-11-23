@@ -1,13 +1,32 @@
+import hashlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
 
 from benchmark import development_rows
-from export_quality import evaluate
+from export_quality import evaluate, reviewed_decisions
 from privapii import Span
 
 
 class ExportQualityTests(unittest.TestCase):
+    def test_reviewed_decisions_bind_to_the_source_and_measure_review_time(self):
+        text = "Asmuo: Jonas"
+        sample = {"text": text, "label": [{"start": 7, "end": 12, "label": "PER"}]}
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            path = folder / "review.json"
+            entry = {"text_sha256": hashlib.sha256(text.encode()).hexdigest(), "review_seconds": 12.5,
+                     "protected": [{"start": 7, "end": 12, "label": "PER"}]}
+            path.write_text(json.dumps({"documents": [entry]}), encoding="utf-8")
+            decisions = reviewed_decisions(path, [sample])
+            report = evaluate([sample], None, folder, decisions=decisions)
+            self.assertEqual(report["workflow"], "reviewed")
+            self.assertEqual(report["documents"]["review_seconds"], 12.5)
+            self.assertEqual(report["categories"]["PER"]["protected"], 1)
+            with self.assertRaisesRegex(ValueError, "different document"):
+                reviewed_decisions(path, [{"text": "Changed"}])
+
     def test_fixture_marks_both_privacy_and_retention_expectations(self):
         fixture = Path(__file__).parent / "fixtures/export_quality.json"
         rows = list(development_rows(fixture))

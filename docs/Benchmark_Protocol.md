@@ -18,6 +18,15 @@ Approve the data source, lawful basis, reviewers, retention, storage and aggrega
 
 ## Evaluation procedure
 
+Use the same local annotated fixture for automatic and reviewed comparisons. For the reviewed pass, record the final protected spans and time spent reviewing each document. Create a local JSON file with a `documents` array ordered like the fixture. Each record has `text_sha256` for the UTF-8 text after fixture markers are removed, `review_seconds`, and a `protected` array of `start`, `end` and `label` values. Use zero-based half-open Python character offsets. A document digest must match before scoring.
+
+```powershell
+.venv/Scripts/python.exe export_quality.py --fixture local/pilot-fixture.json
+.venv/Scripts/python.exe export_quality.py --fixture local/pilot-fixture.json --reviewed-decisions local/pilot-review.json
+```
+
+Keep document text and span records in the ignored local directory. Publish only aggregate results. The reviewed runner scores the supplied decisions and does not run inference again.
+
 - Run in order an independently cleared local rules baseline, original NUS if cleared, then the hybrid configuration with rules and propagation ablations. Keep normalization, policy and data fixed for comparisons. Record commit, checkpoint revision, rule version, runtime version, machine, seed and run ID. Save sanitized aggregate results and keep detailed error samples local.
 - Compute exact-span precision, recall and F1 by category. Separately count false omissions, partial masks and incorrect cross-document links. Score output leakage against the fixed policy. A document leaks if an item selected for transformation can still be recovered from the exact export. Report deliberately retained disclosures and contextual identification separately.
 - Measure leakage both after automated transformation and after the review workflow. Record reviewer time, cases needing correction and unresolved findings. Report eligible document and independent case counts plus paired case-level confidence intervals for system comparisons. For the release gate, align the unit with the claim. A zero-leak result across 299 independent cases supports an upper 95% one-sided exact bound below 1% on the **case** leakage rate. Report the document rate separately and account for case clustering.
