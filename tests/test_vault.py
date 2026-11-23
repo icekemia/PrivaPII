@@ -10,6 +10,25 @@ from vault import Workspace
 
 
 class VaultTests(unittest.TestCase):
+    def test_verified_encrypted_backup_reopens_and_restores(self):
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            password = "backup acceptance password"
+            vault = Workspace(folder / "source.sqlite", password, create=True)
+            vault.review("sample", "sample.txt", "Jonas", [Span(0, 5, "PER")])
+            token = vault.transform("sample", [0])
+            backup = folder / "backup.sqlite"
+            vault.backup(backup)
+            reopened = Workspace(backup, password)
+            self.assertEqual(reopened.restore(token), ("Jonas", 1))
+            self.assertNotIn(b"Jonas", backup.read_bytes())
+            with self.assertRaises(FileExistsError):
+                vault.backup(backup)
+            Workspace(vault.path, password).save()
+            stale = folder / "stale.sqlite"
+            with self.assertRaisesRegex(ValueError, "changed"):
+                vault.backup(stale)
+            self.assertFalse(stale.exists())
     def test_linked_tokens_and_local_occurrence_overrides(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "case.sqlite"

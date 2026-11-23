@@ -24,6 +24,7 @@ from privapii import TOKEN, Case, Span, hybrid, review_spans
 from raster_tables import find_grids
 from table_grid_view import TableGridView
 from tabular import detect_table
+from token_review import compare_tokens
 from vault import Workspace, new_id
 from word_documents import extract_word, extract_word_tables, write_word
 
@@ -162,6 +163,7 @@ class App:
         self.button(workspace, "Create workspace", lambda: self.open_workspace(True))
         self.button(workspace, "Open workspace", lambda: self.open_workspace(False))
         self.button(workspace, "Lock", self.lock_workspace)
+        self.button(workspace, "Backup", self.backup_workspace)
         self.button(workspace, "New document", self.new_document)
         self.documents = ttk.Combobox(workspace, state="readonly", width=28)
         self.documents.pack(side="left", padx=4)
@@ -230,6 +232,7 @@ class App:
         self.button(restore_actions, "Preview local restoration", self.restore)
         self.button(restore_actions, "Choose verified person form", self.choose_person_form)
         self.button(restore_actions, "Save restored file", self.save_restored_file)
+        self.button(restore_actions, "Compare tokens", self.compare_returned_tokens)
         self.restored = self.text(restore, "Restored preview · contains original values", 12, readonly=True)
         self.derived.bind("<<Modified>>", self.derived_changed)
         ttk.Label(root, textvariable=self.status, padding=(12, 0, 12, 10)).pack(fill="x")
@@ -402,6 +405,22 @@ class App:
         self.derived.edit_reset()
         self.replace(self.restored, "")
         self.status.set("Workspace locked. Open it again to restore references.")
+
+    def backup_workspace(self):
+        if not self.workspace_active():
+            self.status.set("Open a persistent workspace before backing it up.")
+            return
+        path = filedialog.asksaveasfilename(defaultextension=".sqlite",
+                                           initialfile="privapii-backup.sqlite",
+                                           filetypes=[("Encrypted workspace", "*.sqlite")])
+        if not path or not self.persist():
+            return
+        try:
+            self.case.backup(Path(path))
+        except (OSError, ValueError, sqlite3.Error) as error:
+            messagebox.showerror("Backup failed", str(error), parent=self.root)
+            return
+        self.status.set("Encrypted backup verified. Open it with the same workspace passphrase.")
 
     def switch_document(self, _event=None):
         index = self.documents.current()
@@ -988,6 +1007,38 @@ class App:
             messagebox.showerror("Save failed", str(error))
             return
         self.status.set("Restored file saved locally. Review it before sharing.")
+
+    def compare_returned_tokens(self):
+        if not self.workspace_active():
+            self.status.set("Open the original workspace to compare tokens.")
+            return
+        returned = self.value(self.derived)
+        if not returned.strip():
+            self.status.set("Import or paste the returned text before comparing tokens.")
+            return
+        paths = filedialog.askopenfilenames(
+            title="Select original pseudonymized exports",
+            filetypes=[("Pseudonymized exports", "*.txt *.md *.markdown *.csv *.docx")],
+        )
+        if not paths:
+            return
+        try:
+            originals = [extract_word(Path(path)) if Path(path).suffix.lower() == ".docx"
+                         else Path(path).read_text(encoding="utf-8-sig") for path in paths]
+            report = compare_tokens(originals, returned, self.case.references.keys())
+        except (OSError, ValueError) as error:
+            messagebox.showerror("Could not compare tokens", str(error), parent=self.root)
+            return
+        messagebox.showinfo("Returned token review", "\n".join((
+            f"Expected tokens returned: {report.returned} of {report.expected}",
+            f"Missing from the return: {report.missing}",
+            f"Workspace tokens outside the selected exports: {report.other_workspace_tokens}",
+            f"Unknown tokens: {report.unknown_tokens}",
+            f"Possibly damaged token fragments: {report.malformed_mentions}",
+            f"Repeated occurrences: {report.repeated_occurrences}",
+            "",
+            "Check omissions against the requested transformation.",
+        )), parent=self.root)
 
     def choose_person_form(self):
         if not self.workspace_active():

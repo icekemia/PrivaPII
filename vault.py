@@ -87,6 +87,31 @@ class Workspace:
                 raise ValueError("Workspace changed in another window. Reopen it before saving.")
         self.revision = revision
 
+    def backup(self, destination):
+        """Copy the committed encrypted database and verify its authenticated snapshot."""
+        with destination.open("xb"):
+            pass
+        try:
+            with closing(self.connect()) as source, closing(sqlite3.connect(destination)) as target:
+                source.backup(target)
+                if target.execute("PRAGMA quick_check").fetchone() != ("ok",):
+                    raise ValueError("The backup failed the SQLite integrity check.")
+                row = target.execute(
+                    "SELECT id, revision, payload FROM vault"
+                ).fetchone()
+                if row is None:
+                    raise ValueError("The backup does not contain a workspace snapshot.")
+                identifier, revision, payload = row
+                if identifier != self.id or revision != self.revision:
+                    raise ValueError("The workspace changed. Reopen it before creating a backup.")
+                try:
+                    self.cipher.decrypt(payload[:12], payload[12:], self.aad(revision))
+                except InvalidTag:
+                    raise ValueError("The backup failed its authentication check.") from None
+        except Exception:
+            destination.unlink(missing_ok=True)
+            raise
+
     def review(self, document_id, name, text, spans, excluded=()):
         previous = self.documents.get(document_id)
         existing = previous["occurrences"] if previous and previous["text"] == text else []
