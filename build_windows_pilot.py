@@ -13,7 +13,8 @@ ROOT = Path(__file__).resolve().parent
 MODES = {"rules": "requirements.txt", "nus": "requirements-evaluation.txt",
          "ocr": "requirements-ocr.txt"}
 PUBLIC_DOCS = {"README.md", "docs/Pilot_Readiness.md", "docs/OCR.md",
-               "docs/Dependency_Review.md", "docs/NUS_Evaluation.md", "docs/Benchmark_Protocol.md"}
+               "docs/Dependency_Review.md", "docs/NUS_Evaluation.md", "docs/Benchmark_Protocol.md",
+               "docs/Demo_Guide.md", "docs/Development_Setup.md", "docs/PrivaPII_Action_Plan.md"}
 STARTUP = {"Start-PrivaPII.cmd", "Setup-PrivaPII.cmd"}
 
 
