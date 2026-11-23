@@ -122,12 +122,31 @@ class Workspace:
 
     def link_people(self, selected, target):
         """Apply explicit identity decisions to selected person occurrences."""
-        people = {item["id"]: item for document in self.documents.values()
-                  for item in document["occurrences"] if item["label"] == "PER"}
+        people = self.person_occurrences()
         selected = set(selected)
         if target not in people or not selected or not selected <= people.keys():
             raise ValueError("Choose saved person mentions within this workspace.")
-        entity = people[target]["entity"]
+        return self.assign_person_entity(people, selected, people[target]["entity"])
+
+    def split_people(self, selected):
+        """Move a confirmed subset of one person group to a fresh entity ID."""
+        people = self.person_occurrences()
+        selected = set(selected)
+        if not selected or not selected <= people.keys():
+            raise ValueError("Select saved person mentions in this workspace.")
+        groups = {people[key]["entity"] for key in selected}
+        if len(groups) != 1:
+            raise ValueError("Select mentions from one entity to separate them.")
+        current = next(iter(groups))
+        if not any(key not in selected and item["entity"] == current for key, item in people.items()):
+            raise ValueError("Leave at least one mention with the original entity ID.")
+        return self.assign_person_entity(people, selected, new_id())
+
+    def person_occurrences(self):
+        return {item["id"]: item for document in self.documents.values()
+                for item in document["occurrences"] if item["label"] == "PER"}
+
+    def assign_person_entity(self, people, selected, entity):
         previous = {key: people[key]["entity"] for key in selected if people[key]["entity"] != entity}
         if not previous:
             return 0

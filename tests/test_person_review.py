@@ -8,6 +8,31 @@ from vault import Workspace
 
 
 class PersonReviewTests(unittest.TestCase):
+    def test_split_reassigns_only_confirmed_mentions_and_keeps_old_exports_restorable(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "people.sqlite"
+            password = "split person group passphrase"
+            vault = Workspace(path, password, create=True)
+            values = {"a": "Jonas Petraitis", "b": "Jono Petraičio", "c": "Jonui Petraičiui"}
+            for key, value in values.items():
+                vault.review(key, key + ".txt", value, [Span(0, len(value), "PER")])
+            ids = {key: doc["occurrences"][0]["id"] for key, doc in vault.documents.items()}
+            vault.link_people([ids["b"], ids["c"]], ids["a"])
+            original = vault.transform("b", [0], link_person_forms=True)
+            with self.assertRaisesRegex(ValueError, "original entity"):
+                vault.split_people(ids.values())
+            self.assertEqual(vault.split_people([ids["b"], ids["c"]]), 2)
+            reopened = Workspace(path, password)
+            entities = {key: doc["occurrences"][0]["entity"] for key, doc in reopened.documents.items()}
+            self.assertEqual(entities["b"], entities["c"])
+            self.assertNotEqual(entities["a"], entities["b"])
+            self.assertEqual(reopened.restore(original), (values["b"], 1))
+            self.assertEqual(reopened.forms_by_occurrence(original), {})
+            replacement = reopened.transform("b", [0], link_person_forms=True)
+            self.assertTrue(replacement.startswith(f"[PRIVAPII_V3_PER_{entities['b'].upper()}_"))
+            with self.assertRaisesRegex(ValueError, "one entity"):
+                reopened.split_people([ids["a"], ids["b"]])
+
     def test_matching_spelling_flags_homonyms_and_explicit_links_survive(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "people.sqlite"

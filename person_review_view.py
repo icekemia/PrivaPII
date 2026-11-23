@@ -49,6 +49,8 @@ class PersonReviewView:
         action.pack(fill="x")
         ttk.Button(action, text="Set selected mention as target", command=self.set_target).pack(side="left", padx=(0, 6))
         ttk.Button(action, text="Link selected mentions to target", command=self.link).pack(side="left")
+        ttk.Button(action, text="Show entity mentions", command=self.show_entity).pack(side="left", padx=6)
+        ttk.Button(action, text="Split selected mentions", command=self.split).pack(side="left")
         ttk.Button(action, text="Close", command=self.window.destroy).pack(side="right")
         self.status = tk.StringVar()
         ttk.Label(self.window, textvariable=self.status, padding=(8, 0, 8, 8)).pack(anchor="w")
@@ -100,6 +102,16 @@ class PersonReviewView:
         self.scope = None
         self.refresh()
 
+    def show_entity(self):
+        selected = self.table.selection()
+        if len(selected) != 1:
+            self.status.set("Select one mention to view its complete group.")
+            return
+        entity = self.items[selected[0]].entity_id
+        self.scope = {key for key, item in self.items.items() if item.entity_id == entity}
+        self.candidates_only.set(False)
+        self.query.set("")
+
     def update_status(self, visible=None):
         count = len(self.table.get_children()) if visible is None else visible
         target = self.items.get(self.target)
@@ -134,4 +146,26 @@ class PersonReviewView:
             messagebox.showerror("Person links unavailable", str(error), parent=self.window)
             return
         self.changed |= changed > 0
+        self.refresh()
+
+    def split(self):
+        selected = self.table.selection()
+        if not selected:
+            self.status.set("Select the mentions that belong to a separate person.")
+            return
+        if not messagebox.askyesno(
+                "Confirm person split",
+                f"Move {len(selected)} selected mentions to one new entity ID? "
+                "Regenerate exports to share the corrected grouping.",
+                parent=self.window):
+            return
+        try:
+            changed = self.workspace.split_people(selected)
+        except (OSError, ValueError, sqlite3.Error) as error:
+            messagebox.showerror("Could not split person mentions", str(error), parent=self.window)
+            return
+        self.changed |= changed > 0
+        if self.target in selected:
+            self.target = None
+        self.scope = None
         self.refresh()
