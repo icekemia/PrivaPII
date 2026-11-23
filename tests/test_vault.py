@@ -10,6 +10,28 @@ from vault import Workspace
 
 
 class VaultTests(unittest.TestCase):
+    def test_retention_reminder_and_forgetting_only_exclusive_bindings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "vault.sqlite"
+            password = "retention test passphrase"
+            vault = Workspace(path, password, create=True)
+            for key in ("first", "second"):
+                vault.review(key, key + ".txt", "Jonas", [Span(0, 5, "PER")])
+            entity = vault.documents["first"]["occurrences"][0]["entity"]
+            vault.link("second", 0, entity)
+            shared = vault.transform("first", [0])
+            self.assertEqual(vault.transform("second", [0]), shared)
+            vault.review("private", "third.txt", "Rūta", [Span(0, 4, "PER")])
+            exclusive = vault.transform("private", [0])
+            vault.set_retention_review("2026-12-01")
+            self.assertEqual(vault.forget_document("first"), 0)
+            self.assertEqual(vault.forget_document("private"), 1)
+            reopened = Workspace(path, password)
+            self.assertEqual(reopened.retention_review_on, "2026-12-01")
+            self.assertEqual(set(reopened.documents), {"second"})
+            self.assertEqual(reopened.restore(shared), ("Jonas", 1))
+            with self.assertRaises(ValueError):
+                reopened.restore(exclusive)
     def test_verified_encrypted_backup_reopens_and_restores(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory)

@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import sqlite3
 import tkinter as tk
+from datetime import date
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
@@ -164,6 +165,7 @@ class App:
         self.button(workspace, "Open workspace", lambda: self.open_workspace(False))
         self.button(workspace, "Lock", self.lock_workspace)
         self.button(workspace, "Backup", self.backup_workspace)
+        self.button(workspace, "Retention", self.manage_retention)
         self.button(workspace, "New document", self.new_document)
         self.documents = ttk.Combobox(workspace, state="readonly", width=28)
         self.documents.pack(side="left", padx=4)
@@ -385,6 +387,8 @@ class App:
         self.replace(self.restored, "")
         self.load_document(next(iter(workspace.documents), new_id()))
         self.status.set("Workspace unlocked. Import documents or open a saved review.")
+        if workspace.retention_review_on and workspace.retention_review_on <= date.today().isoformat():
+            self.status.set(f"Workspace retention review due · {workspace.retention_review_on}.")
 
     def lock_workspace(self):
         if not self.workspace_active() or not self.persist():
@@ -421,6 +425,37 @@ class App:
             messagebox.showerror("Backup failed", str(error), parent=self.root)
             return
         self.status.set("Encrypted backup verified. Open it with the same workspace passphrase.")
+
+    def manage_retention(self):
+        if not self.workspace_active() or not self.persist():
+            return
+        choices = ["Set retention review date"]
+        if self.document_id in self.case.documents:
+            choices.append("Forget current document and its exclusive restoration references")
+        action = ChoiceDialog(self.root, "Workspace retention", choices).result
+        if action is None:
+            return
+        try:
+            if action == 0:
+                value = simpledialog.askstring("Retention review", "Enter YYYY-MM-DD, or leave blank to clear.",
+                                              initialvalue=self.case.retention_review_on or "", parent=self.root)
+                if value is None:
+                    return
+                self.case.set_retention_review(value.strip())
+                self.status.set("Retention review reminder updated.")
+                return
+            if not messagebox.askyesno(
+                    "Forget current document",
+                    f"Remove {self.document_name} and its exclusive restoration references from this workspace? "
+                    "Existing backups and files remain separate copies.", parent=self.root):
+                return
+            removed = self.case.forget_document(self.document_id)
+            self.load_document(next(iter(self.case.documents), new_id()))
+            self.replace(self.derived, "")
+            self.reset_restoration()
+            self.status.set(f"Document forgotten. {removed} exclusive restoration references removed.")
+        except (ValueError, OSError, sqlite3.Error) as error:
+            messagebox.showerror("Retention change failed", str(error), parent=self.root)
 
     def switch_document(self, _event=None):
         index = self.documents.current()

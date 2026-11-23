@@ -3,6 +3,7 @@
 import json
 import secrets
 import sqlite3
+from datetime import date
 from contextlib import closing
 from dataclasses import asdict
 from uuid import uuid4
@@ -32,6 +33,7 @@ class Workspace:
             self.id = new_id()
             self.documents, self.references, self.profiles = {}, {}, {}
             self.active_profile = "Standard"
+            self.retention_review_on = None
             self.revision = 0
             self.cipher = self.derive(passphrase, salt)
             with self.path.open("xb"):
@@ -56,6 +58,7 @@ class Workspace:
         self.references = state["references"]
         self.profiles = state["profiles"]
         self.active_profile = state.get("active_profile", "Standard")
+        self.retention_review_on = state.get("retention_review_on")
 
     def connect(self):
         return sqlite3.connect(self.path.as_uri() + "?mode=rw", uri=True)
@@ -73,6 +76,7 @@ class Workspace:
         clear = json.dumps({
             "documents": self.documents, "references": self.references, "profiles": self.profiles,
             "active_profile": self.active_profile,
+            "retention_review_on": self.retention_review_on,
         }, ensure_ascii=False).encode("utf-8")
         return nonce + self.cipher.encrypt(nonce, clear, self.aad(revision))
 
@@ -86,6 +90,35 @@ class Workspace:
             if result.rowcount != 1:
                 raise ValueError("Workspace changed in another window. Reopen it before saving.")
         self.revision = revision
+
+    def set_retention_review(self, value):
+        if value and date.fromisoformat(value).isoformat() != value:
+            raise ValueError("Use YYYY-MM-DD for the review date.")
+        previous = self.retention_review_on
+        self.retention_review_on = value or None
+        try:
+            self.save()
+        except Exception:
+            self.retention_review_on = previous
+            raise
+
+    def forget_document(self, document_id):
+        if document_id not in self.documents:
+            raise ValueError("The document is not in this workspace.")
+        previous_docs, previous_references = self.documents, self.references
+        self.documents = {key: item for key, item in previous_docs.items() if key != document_id}
+        self.references = {}
+        for token, record in previous_references.items():
+            sources = record.get("sources", [])
+            surviving = [source for source in sources if source[0] != document_id]
+            if surviving or not sources:
+                self.references[token] = {**record, "sources": surviving}
+        try:
+            self.save()
+        except Exception:
+            self.documents, self.references = previous_docs, previous_references
+            raise
+        return len(previous_references) - len(self.references)
 
     def backup(self, destination):
         """Copy the committed encrypted database and verify its authenticated snapshot."""
