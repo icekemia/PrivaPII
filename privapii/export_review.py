@@ -4,8 +4,8 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 
-from export_formats import parse_csv
-from privapii import TOKEN, TOKEN_START, rules
+from .export_formats import parse_csv
+from .detection import TOKEN, TOKEN_START, rules
 
 MARKDOWN_ESCAPE = re.compile(r"\\([!\"#$%&'()*+,\-./:;<=>?@\[\]\\^_`{|}~])")
 

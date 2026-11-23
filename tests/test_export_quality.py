@@ -4,9 +4,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from benchmark import development_rows
-from export_quality import evaluate, reviewed_decisions
-from privapii import Span
+from tools.benchmark import development_rows
+from tools.export_quality import evaluate, reviewed_decisions
+from privapii.detection import Span
 
 
 class ExportQualityTests(unittest.TestCase):

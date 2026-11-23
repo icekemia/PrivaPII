@@ -5,7 +5,7 @@ import re
 from io import StringIO
 from pathlib import Path
 
-from privapii import TOKEN
+from .detection import TOKEN
 
 TEXT_FORMATS = {"TXT": ".txt", "Markdown": ".md", "CSV": ".csv", "Word": ".docx"}
 NUMBERED = re.compile(r"^([ \t]*)([0-9]{1,3}(?:\.[0-9]{1,3})*)([.)])(?=\s|[^\W\d_]|$)")

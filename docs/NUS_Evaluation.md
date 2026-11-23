@@ -53,14 +53,14 @@ The updated benchmark runner completed a rules-only diagnostic on all 123 docume
 
 ## Reproduction
 
-Use the setup instructions in the [README](../README.md). Run `python benchmark.py --rules-only` for the diagnostic and `python benchmark.py` for the paired comparison. Use `--limit 2` to check the setup on a smaller input.
+Use the setup instructions in the [development setup guide](Development_Setup.md). Run `python -m tools.benchmark --rules-only` for the diagnostic and `python -m tools.benchmark` for the paired comparison. Use `--limit 2` to check the setup on a smaller input.
 
 ## Span-boundary development check
 
 The separate synthetic [Lithuanian fixture](../tests/fixtures/lithuanian_development.json) has ten texts and twenty annotated spans across seven scored categories. It includes inflected names, contacts, legal identifiers and a negative checksum example. Run the comparison with the local checkpoint:
 
 ```powershell
-.venv/Scripts/python.exe benchmark.py --development tests/fixtures/lithuanian_development.json --compare-boundaries
+.venv/Scripts/python.exe -m tools.benchmark --development tests/fixtures/lithuanian_development.json --compare-boundaries
 ```
 
 The experimental decoder keeps the token prediction furthest from the edge of each overlapping window, then performs BIO decoding across the document. Its implementation is inspired by the upstream centered attribution approach. The existing application decoder remains the default.
@@ -76,7 +76,7 @@ A separate smoke check used four overlapping windows on a long synthetic documen
 
 ## Markdown export quality check
 
-Run `.venv/Scripts/python.exe export_quality.py` with the local NUS checkpoint. The [synthetic fixture](../tests/fixtures/export_quality.json) annotates both sensitive spans and content the Standard profile should preserve. The checker runs hybrid detection, applies the profile, renders an actual Markdown export, then reorders and repeats excerpts before restoring them through a reopened encrypted workspace. Coverage is measured against source spans. Restoration is measured separately against the expected formatted document.
+Run `.venv/Scripts/python.exe -m tools.export_quality` with the local NUS checkpoint. The [synthetic fixture](../tests/fixtures/export_quality.json) annotates both sensitive spans and content the Standard profile should preserve. The checker runs hybrid detection, applies the profile, renders an actual Markdown export, then reorders and repeats excerpts before restoring them through a reopened encrypted workspace. Coverage is measured against source spans. Restoration is measured separately against the expected formatted document.
 
 | Check | Before preserving line breaks | After preserving line breaks |
 | --- | ---: | ---: |

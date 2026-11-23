@@ -4,9 +4,9 @@ import unittest
 from contextlib import closing
 from pathlib import Path
 
-from privapii import Span
-from export_formats import render_export
-from vault import Workspace
+from privapii.detection import Span
+from privapii.export_formats import render_export
+from privapii.vault import Workspace
 
 
 class VaultTests(unittest.TestCase):

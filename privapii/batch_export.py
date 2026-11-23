@@ -3,10 +3,10 @@
 from dataclasses import dataclass
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from export_formats import TEXT_FORMATS, render_export
-from export_review import Residual, inspect_export, retained_identifiers
-from policy import selected_indices
-from privapii import Span
+from .export_formats import TEXT_FORMATS, render_export
+from .export_review import Residual, inspect_export, retained_identifiers
+from .policy import selected_indices
+from .detection import Span
 
 BATCH_FORMATS = ("TXT", "Markdown")
 

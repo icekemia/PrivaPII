@@ -1,7 +1,7 @@
 import unittest
 
-from policy import PROFILES, selected_indices
-from privapii import Case, Span, canonical_token, restore_references, review_spans
+from privapii.policy import PROFILES, selected_indices
+from privapii.detection import Case, Span, canonical_token, restore_references, review_spans
 
 
 class ContextTests(unittest.TestCase):
@@ -54,7 +54,7 @@ class ContextTests(unittest.TestCase):
         self.assertNotIn("AB-123", output)
 
     def test_automatic_cross_line_finding_preserves_markdown_line_break(self):
-        from export_formats import render_export
+        from privapii.export_formats import render_export
 
         text = "Asmuo: Jonas Petraitis\nPranešimas"
         span = Span(text.index("Jonas"), len(text), "PER", "nus")

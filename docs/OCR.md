@@ -4,10 +4,10 @@ PrivaPII opens a review window for scanned PDFs and raster images from an unlock
 
 ## Setup
 
-Install CPU PyTorch and the evaluation dependencies according to the [README](../README.md). Then install the OCR dependencies:
+Install CPU PyTorch and the evaluation dependencies according to the [development setup guide](Development_Setup.md). Then install the OCR dependencies:
 
 ```powershell
-.venv/Scripts/python.exe -m pip install -r requirements-ocr.txt
+.venv/Scripts/python.exe -m pip install -r requirements/requirements-ocr.txt
 ```
 
 Place the three inference files `inference.json`, `inference.pdiparams` and `inference.yml` for each Paddle model in the corresponding ignored directory:
@@ -42,10 +42,10 @@ The PDF writer creates one lossless image per page from already-masked pixels. T
 ## Launch the standalone reviewer
 
 ```powershell
-.venv/Scripts/python.exe ocr_review.py local/scan.pdf --workspace local/scan.sqlite --output local/scan_reviewed.txt --create
+.venv/Scripts/python.exe -m privapii.ocr_review local/scan.pdf --workspace local/scan.sqlite --output local/scan_reviewed.txt --create
 ```
 
-Remove `--create` to use an existing workspace. Every recognized region defaults to **Mask**. Use the crop as the source of truth. Type its exact transcription to keep it as text or pseudonymize the region with a restorable reference. A matching OCR pair and a checksum result can inform review. Only a human-confirmed transcription becomes restorable. OCR readings, coordinates, source digest, and review decisions are retained inside the encrypted workspace. Open the workspace in `app.py` to restore authorized references.
+Remove `--create` to use an existing workspace. Every recognized region defaults to **Mask**. Use the crop as the source of truth. Type its exact transcription to keep it as text or pseudonymize the region with a restorable reference. A matching OCR pair and a checksum result can inform review. Only a human-confirmed transcription becomes restorable. OCR readings, coordinates, source digest, and review decisions are retained inside the encrypted workspace. Open the workspace in `python -m privapii.app` to restore authorized references.
 
 The standalone line reviewer exports plain text. It approximates reading order by region position. For PDF line review, the app maps native text boxes into raster coordinates and displays overlapping native text as additional evidence next to both OCR readings. Native-only regions enter the same manual review. Image and native-text readings both require visual confirmation. Automated page completeness checks remain open. Text positions can shift when a recognized region spans multiple OCR lines.
 
@@ -53,7 +53,7 @@ The standalone line reviewer exports plain text. It approximates reading order b
 
 ```powershell
 .venv/Scripts/python.exe -m unittest discover -s tests -v
-.venv/Scripts/python.exe ocr_smoke.py
+.venv/Scripts/python.exe -m tools.ocr_smoke
 ```
 
 The smoke test renders three synthetic Lithuanian lines as a scanned PDF, runs both engines and tests a human-verified value through export and vault reopening. It denies DNS resolution and connections through Python's socket audit events. This checks the Python inference path with local assets. It does not monitor network activity inside native libraries.

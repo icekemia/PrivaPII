@@ -8,9 +8,9 @@ from pypdf import PdfReader, PdfWriter
 from pypdf.annotations import Text
 from pypdf.generic import ArrayObject, DecodedStreamObject, DictionaryObject, NameObject
 
-from ocr import Reading, align, raster_pages
-from ocr_review import Review
-from pdf_redaction import clamp_box, review_masks, write_redacted_pdf
+from privapii.ocr import Reading, align, raster_pages
+from privapii.ocr_review import Review
+from privapii.pdf_redaction import clamp_box, review_masks, write_redacted_pdf
 
 
 class PdfRedactionTests(unittest.TestCase):

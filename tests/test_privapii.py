@@ -1,8 +1,8 @@
 import unittest
 from collections import Counter
 
-from benchmark import score, summarize
-from privapii import Case, Span, TOKEN, hybrid
+from tools.benchmark import score, summarize
+from privapii.detection import Case, Span, TOKEN, hybrid
 
 
 class CaseTests(unittest.TestCase):

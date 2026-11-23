@@ -1,8 +1,8 @@
 import unittest
 
-from export_formats import csv_text, render_export
-from export_review import inspect_export, retained_identifiers, retained_transcriptions
-from privapii import Case, Span, rules
+from privapii.export_formats import csv_text, render_export
+from privapii.export_review import inspect_export, retained_identifiers, retained_transcriptions
+from privapii.detection import Case, Span, rules
 
 
 class ExportReviewTests(unittest.TestCase):

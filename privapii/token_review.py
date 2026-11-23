@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from privapii import TOKEN, TOKEN_START
+from .detection import TOKEN, TOKEN_START
 
 
 @dataclass(frozen=True)

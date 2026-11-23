@@ -2,9 +2,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ocr import Reading, align
-from ocr_review import Review, export_review
-from vault import Workspace
+from privapii.ocr import Reading, align
+from privapii.ocr_review import Review, export_review
+from privapii.vault import Workspace
 
 
 class OcrTests(unittest.TestCase):

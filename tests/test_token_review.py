@@ -1,7 +1,7 @@
 import unittest
 
-from privapii import Case, Span
-from token_review import compare_tokens
+from privapii.detection import Case, Span
+from privapii.token_review import compare_tokens
 
 
 class TokenReviewTests(unittest.TestCase):

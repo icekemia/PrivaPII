@@ -4,7 +4,7 @@ import tkinter as tk
 from bisect import bisect_right
 from tkinter import ttk
 
-from raster_tables import RasterTable
+from .raster_tables import RasterTable
 
 
 class TableGridView:

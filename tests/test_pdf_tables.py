@@ -6,11 +6,11 @@ from types import SimpleNamespace
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
-from export_formats import parse_csv, render_export, restore_csv
-from pdf_tables import complete_grid, extract_pdf_tables
-from policy import PROFILES, selected_indices
-from privapii import Case, Span, rules
-from tabular import detect_table
+from privapii.export_formats import parse_csv, render_export, restore_csv
+from privapii.pdf_tables import complete_grid, extract_pdf_tables
+from privapii.policy import PROFILES, selected_indices
+from privapii.detection import Case, Span, rules
+from privapii.tabular import detect_table
 
 
 def write_table_pdf(path):

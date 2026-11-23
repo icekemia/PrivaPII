@@ -3,8 +3,8 @@
 import re
 from pathlib import Path
 
-from export_formats import table_rows
-from privapii import DATE_VALUE, Span
+from .export_formats import table_rows
+from .detection import DATE_VALUE, Span
 
 BIRTH_COLUMNS = {"gimimo data", "gim. data", "date of birth", "birth date"}
 DATE_COLUMNS = {"data", "išdavimo data", "dokumento data", "date", "issue date", "document date"}

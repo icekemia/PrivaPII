@@ -1,7 +1,7 @@
 import unittest
 
-from policy import ALL_CATEGORIES, selected_indices
-from privapii import Span
+from privapii.policy import ALL_CATEGORIES, selected_indices
+from privapii.detection import Span
 
 
 class PolicyTests(unittest.TestCase):

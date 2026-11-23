@@ -4,7 +4,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from pdf_redaction import clamp_box, masked_page, review_masks, write_redacted_pdf
+from .pdf_redaction import clamp_box, masked_page, review_masks, write_redacted_pdf
 
 
 class PdfRedactionView:

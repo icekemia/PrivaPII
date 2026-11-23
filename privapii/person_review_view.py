@@ -4,7 +4,7 @@ import sqlite3
 import tkinter as tk
 from tkinter import messagebox, ttk
 
-from person_review import normalized, person_mentions
+from .person_review import normalized, person_mentions
 
 
 class PersonReviewView:

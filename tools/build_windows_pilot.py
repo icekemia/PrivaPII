@@ -9,19 +9,21 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from zipfile import ZIP_DEFLATED, ZipFile
 
-ROOT = Path(__file__).resolve().parent
-MODES = {"rules": "requirements.txt", "nus": "requirements-evaluation.txt",
-         "ocr": "requirements-ocr.txt"}
+ROOT = Path(__file__).resolve().parents[1]
+MODES = {"rules": "requirements/requirements.txt", "nus": "requirements/requirements-evaluation.txt",
+         "ocr": "requirements/requirements-ocr.txt"}
 PUBLIC_DOCS = {"README.md", "docs/Pilot_Readiness.md", "docs/OCR.md",
                "docs/Dependency_Review.md", "docs/NUS_Evaluation.md", "docs/Benchmark_Protocol.md",
                "docs/Demo_Guide.md", "docs/Development_Setup.md", "docs/PrivaPII_Action_Plan.md"}
-STARTUP = {"Start-PrivaPII.cmd", "Setup-PrivaPII.cmd"}
+STARTUP = {"windows/Start-PrivaPII.cmd", "windows/Setup-PrivaPII.cmd"}
+PILOT_TOOLS = {"tools/__init__.py", "tools/benchmark.py", "tools/export_quality.py", "tools/ocr_smoke.py"}
 
 
 def package_files():
     tracked = subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT).decode("utf-8").split("\0")
-    return sorted(name for name in tracked if name in PUBLIC_DOCS | STARTUP | set(MODES.values())
-                  or ("/" not in name and name.endswith(".py") and name != Path(__file__).name))
+    return sorted(name for name in tracked
+                  if name in PUBLIC_DOCS | STARTUP | PILOT_TOOLS | set(MODES.values())
+                  or (name.startswith("privapii/") and name.count("/") == 1 and name.endswith(".py")))
 
 
 def main():
@@ -56,7 +58,7 @@ def main():
         subprocess.run(request, check=True)
         with target.open("xb") as stream, ZipFile(stream, "w", compression=ZIP_DEFLATED) as archive:
             for name in files:
-                archive.write(ROOT / name, name)
+                archive.write(ROOT / name, Path(name).name if name in STARTUP else name)
             archive.writestr("pilot-requirements.txt", requirements)
             for wheel in sorted(temp.glob("*.whl")):
                 archive.write(wheel, f"wheelhouse/{wheel.name}")

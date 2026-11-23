@@ -1,9 +1,9 @@
 import unittest
 from pathlib import Path
 
-from benchmark import development_rows
-from nus import decode_centered
-from privapii import Span
+from tools.benchmark import development_rows
+from privapii.nus import decode_centered
+from privapii.detection import Span
 
 
 class BoundaryTests(unittest.TestCase):

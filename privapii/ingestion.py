@@ -13,7 +13,7 @@ def extract_with_coverage(path: Path):
     if suffix in {".txt", ".md", ".markdown", ".tsv"}:
         return path.read_text(encoding="utf-8-sig"), 0, ()
     if suffix == ".docx":
-        from word_documents import extract_word
+        from .word_documents import extract_word
 
         return extract_word(path), 0, ()
     if suffix != ".pdf":

@@ -10,24 +10,24 @@ from dataclasses import replace
 from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
-from batch_export_view import BatchExportView
-from export_formats import TEXT_FORMATS, parse_csv, render_export, restore_csv, table_rows
-from export_review import inspect_export, retained_identifiers, retained_transcriptions
-from ingestion import extract_with_coverage
-from nus import NusDetector, checkpoint_ready
-from ocr import raster_pages
-from ocr_review import Reviewer, ScanProcessor, export_review
-from pdf_redaction_view import PdfRedactionView
-from pdf_tables import extract_pdf_tables
-from person_review_view import PersonReviewView
-from policy import ALL_CATEGORIES, CATEGORY_GROUPS, PROFILES, selected_indices
-from privapii import TOKEN, Case, Span, hybrid, review_spans
-from raster_tables import find_grids
-from table_grid_view import TableGridView
-from tabular import detect_table
-from token_review import compare_tokens
-from vault import Workspace, new_id
-from word_documents import extract_word, extract_word_tables, write_word
+from .batch_export_view import BatchExportView
+from .export_formats import TEXT_FORMATS, parse_csv, render_export, restore_csv, table_rows
+from .export_review import inspect_export, retained_identifiers, retained_transcriptions
+from .ingestion import extract_with_coverage
+from .nus import NusDetector, checkpoint_ready
+from .ocr import raster_pages
+from .ocr_review import Reviewer, ScanProcessor, export_review
+from .pdf_redaction_view import PdfRedactionView
+from .pdf_tables import extract_pdf_tables
+from .person_review_view import PersonReviewView
+from .policy import ALL_CATEGORIES, CATEGORY_GROUPS, PROFILES, selected_indices
+from .detection import TOKEN, Case, Span, hybrid, review_spans
+from .raster_tables import find_grids
+from .table_grid_view import TableGridView
+from .tabular import detect_table
+from .token_review import compare_tokens
+from .vault import Workspace, new_id
+from .word_documents import extract_word, extract_word_tables, write_word
 
 
 class ChoiceDialog(simpledialog.Dialog):

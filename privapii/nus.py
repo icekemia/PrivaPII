@@ -1,6 +1,6 @@
 """Offline adapter for the pinned NUS token-classification checkpoint."""
 
-from privapii import Span
+from .detection import Span
 
 CHECKPOINT_BYTES = 2_235_612_716
 STRIDE = 128

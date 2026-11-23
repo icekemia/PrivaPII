@@ -6,10 +6,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from time import perf_counter
 
-from nus import NusDetector
-from ocr import Paddle, Tesseract, align, raster_pages
-from ocr_review import Review, export_review, find_categories
-from vault import Workspace
+from privapii.nus import NusDetector
+from privapii.ocr import Paddle, Tesseract, align, raster_pages
+from privapii.ocr_review import Review, export_review, find_categories
+from privapii.vault import Workspace
 
 LINES = (
     "Kontaktinis asmuo: Ąžuolas Žukas",

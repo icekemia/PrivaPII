@@ -2,9 +2,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from export_formats import parse_csv, render_export, restore_csv
-from privapii import TOKEN, Span
-from vault import Workspace
+from privapii.export_formats import parse_csv, render_export, restore_csv
+from privapii.detection import TOKEN, Span
+from privapii.vault import Workspace
 
 
 class ExportFormatTests(unittest.TestCase):
@@ -38,7 +38,7 @@ class ExportFormatTests(unittest.TestCase):
             parse_csv('"unterminated,field')
 
     def test_csv_form_override_targets_one_cell(self):
-        from privapii import Case
+        from privapii.detection import Case
 
         case = Case()
         token = case.transform("Jonas", [Span(0, 5, "PER")])

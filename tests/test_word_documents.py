@@ -3,10 +3,10 @@ import unittest
 from pathlib import Path
 from zipfile import ZipFile
 
-from ingestion import extract
-from privapii import Span, TOKEN
-from vault import Workspace
-from word_documents import NS, extract_word, extract_word_tables, write_word
+from privapii.ingestion import extract
+from privapii.detection import Span, TOKEN
+from privapii.vault import Workspace
+from privapii.word_documents import NS, extract_word, extract_word_tables, write_word
 
 
 class WordDocumentTests(unittest.TestCase):

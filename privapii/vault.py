@@ -12,7 +12,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
-from privapii import TOKEN, Span, canonical_token, merged_ranges, restore_references, token_prefix
+from .detection import TOKEN, Span, canonical_token, merged_ranges, restore_references, token_prefix
 
 
 def new_id():

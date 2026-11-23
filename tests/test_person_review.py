@@ -2,9 +2,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from person_review import name_variants, person_mentions
-from privapii import Span
-from vault import Workspace
+from privapii.person_review import name_variants, person_mentions
+from privapii.detection import Span
+from privapii.vault import Workspace
 
 
 class PersonReviewTests(unittest.TestCase):

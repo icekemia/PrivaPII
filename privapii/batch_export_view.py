@@ -5,7 +5,7 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-from batch_export import BATCH_FORMATS, Batch
+from .batch_export import BATCH_FORMATS, Batch
 
 
 class BatchExportView:

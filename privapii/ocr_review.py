@@ -9,11 +9,11 @@ from getpass import getpass
 from pathlib import Path
 from tkinter import messagebox, ttk
 
-from nus import NusDetector
-from ocr import Paddle, Region, Tesseract, align, fuse_native, raster_evidence
-from tabular import detect_table
-from privapii import Span, hybrid, review_spans, rules
-from vault import Workspace, new_id
+from .nus import NusDetector
+from .ocr import Paddle, Region, Tesseract, align, fuse_native, raster_evidence
+from .tabular import detect_table
+from .detection import Span, hybrid, review_spans, rules
+from .vault import Workspace, new_id
 
 
 @dataclass

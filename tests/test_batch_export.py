@@ -3,10 +3,10 @@ import unittest
 from pathlib import Path
 from zipfile import ZipFile
 
-from batch_export import Batch
-from policy import PROFILES
-from privapii import TOKEN, Span
-from vault import Workspace
+from privapii.batch_export import Batch
+from privapii.policy import PROFILES
+from privapii.detection import TOKEN, Span
+from privapii.vault import Workspace
 
 
 class BatchExportTests(unittest.TestCase):

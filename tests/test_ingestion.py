@@ -5,9 +5,9 @@ from pathlib import Path
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
-from ingestion import extract, extract_with_coverage
-from ocr import Region, Reading, fuse_native, native_pdf_readings
-from privapii import rules
+from privapii.ingestion import extract, extract_with_coverage
+from privapii.ocr import Region, Reading, fuse_native, native_pdf_readings
+from privapii.detection import rules
 
 
 class IngestionTests(unittest.TestCase):

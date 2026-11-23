@@ -5,12 +5,12 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from export_formats import parse_csv, render_export, restore_csv
-from ocr import Reading, Region
-from ocr_review import Review, export_review
-from pdf_redaction import review_masks
-from raster_tables import RasterTable, find_grids
-from vault import Workspace
+from privapii.export_formats import parse_csv, render_export, restore_csv
+from privapii.ocr import Reading, Region
+from privapii.ocr_review import Review, export_review
+from privapii.pdf_redaction import review_masks
+from privapii.raster_tables import RasterTable, find_grids
+from privapii.vault import Workspace
 
 
 class RasterTableTests(unittest.TestCase):

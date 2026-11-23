@@ -9,8 +9,8 @@ from collections import Counter
 from pathlib import Path
 from time import perf_counter
 
-from nus import NusDetector
-from privapii import Span, hybrid
+from privapii.nus import NusDetector
+from privapii.detection import Span, hybrid
 
 ANNOTATION = re.compile(r"\[\[([A-Z_]+)\|([^\]]+)\]\]")
 

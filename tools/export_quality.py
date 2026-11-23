@@ -7,12 +7,12 @@ from collections import Counter
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from benchmark import development_rows
-from export_formats import render_export
-from nus import NusDetector
-from policy import PROFILES, selected_indices
-from privapii import TOKEN, Span, hybrid, merged_ranges, review_spans
-from vault import Workspace, new_id
+from .benchmark import development_rows
+from privapii.export_formats import render_export
+from privapii.nus import NusDetector
+from privapii.policy import PROFILES, selected_indices
+from privapii.detection import TOKEN, Span, hybrid, merged_ranges, review_spans
+from privapii.vault import Workspace, new_id
 
 FIXTURE = Path("tests/fixtures/export_quality.json")
 
