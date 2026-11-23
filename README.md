@@ -12,6 +12,8 @@ python -m venv .venv
 .venv/Scripts/python.exe app.py
 ```
 
+After setup, **Start-PrivaPII.cmd** opens the app from the project folder. Run `.venv/Scripts/python.exe check_setup.py --mode ocr` to check installed dependencies and pinned asset checksums for the complete local configuration. Use `--mode nus` or `--mode rules` for smaller configurations.
+
 Rules mode detects Lithuanian phone formats, email addresses and checksum-valid personal, company, VAT and Lithuanian IBAN identifiers. Company-code detection requires a matching Lithuanian field label, and VAT detection requires the LT prefix. A reviewer can mark additional spans. With the evaluation dependencies and a complete local checkpoint, the default **NUS + rules** mode combines both detectors. Use **NUS only** to compare on the same text.
 
 1. Select **Create workspace** and save the vault under the ignored `vault/` directory or outside the repository. Choose a passphrase. Use **Import document** to open TXT, TSV, Markdown, DOCX or text-based PDF files, or paste text into a new document.
@@ -19,9 +21,13 @@ Rules mode detects Lithuanian phone formats, email addresses and checksum-valid 
 3. Choose **Pseudonymize** for reversible references. **Redact irreversibly** is available for permanent text removal in the output. Inspect the exact preview for residual identifiers before saving or copying it.
 4. Review and export another document in the same workspace. Combine or reorder the pseudonymized passages and paste them into **Restore derived text**, or import derived TXT or Markdown files. You can lock the workspace or close PrivaPII, then reopen the workspace with its passphrase and restore the same references. Review the attribution and Lithuanian grammar before reusing the restored text.
 
+Use **Compare tokens** to compare the return with selected original pseudonymized exports. Check missing references against the requested transformation. Use **Save restored file** for TXT, Markdown, CSV or Word. Restored files contain original values.
+
 The workspace stores an authenticated AES-GCM snapshot in SQLite. The passphrase derives the key locally with scrypt. If the passphrase is lost, the workspace cannot be recovered. Temporary mode keeps references in memory only. Linking is manual and scoped to the workspace. Confirmed identical surface forms can reuse a token, while different inflections have distinct tokens tied to the same entity. Previously generated references remain valid for their original surface forms after regrouping. Workspace files contain encrypted originals even when an output is redacted. Pseudonymized exports can retain identifying context.
 
-**Import document** extracts the native PDF text layer and reports empty pages. Choose **Review scan** in an unlocked workspace to process scanned PDFs, raster images and mixed pages with [local OCR](docs/OCR.md). That workflow offers reversible text exports and an optional irreversible, image-only PDF with reviewed pixel masks. Automatic identity resolution and passphrase recovery remain outside this milestone.
+Use **Backup** in an unlocked workspace to save a separate encrypted copy after the current review is committed. Open the backup as a workspace with the same passphrase. Keep the backup and passphrase available separately when moving to another PC.
+
+**Import document** extracts the native PDF text layer and reports empty and mixed pages. For a single mixed PDF, use the prompt to open OCR review directly from an unlocked workspace. **Review scan** also processes scanned PDFs and raster images with [local OCR](docs/OCR.md). That workflow offers reversible text exports and an optional irreversible, image-only PDF with reviewed pixel masks. Automatic identity resolution and passphrase recovery remain outside this milestone.
 
 NUS finding scores describe model confidence and have not been calibrated as probabilities of correctness. Rule findings report the format or checksum check performed. Review the extraction and the selected findings for omissions before exporting.
 
@@ -86,4 +92,4 @@ Place the [NUS validacija Parquet export](https://huggingface.co/datasets/Vytaut
 
 The paired run compares the NUS checkpoint through PrivaPII's offline adapter with the same adapter plus rules. It reports exact precision, recall, F1 and F2, boundary errors, complete omissions, partial or full exposure, inference timing and peak working-set memory. New rule types outside the NUS taxonomy are counted separately and need adjudication. Reserve the upstream evaluation split for fixed comparisons and use separate development data to tune future rules.
 
-See the [demo guide](docs/Demo_Guide.md), [action plan](docs/PrivaPII_Action_Plan.md), [benchmark protocol](docs/Benchmark_Protocol.md) and [dependency review](docs/Dependency_Review.md).
+See the [pilot readiness plan](docs/Pilot_Readiness.md), [demo guide](docs/Demo_Guide.md), [action plan](docs/PrivaPII_Action_Plan.md), [benchmark protocol](docs/Benchmark_Protocol.md) and [dependency review](docs/Dependency_Review.md).
