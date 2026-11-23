@@ -47,7 +47,7 @@ The PDF writer creates one lossless image per page from already-masked pixels. T
 
 Remove `--create` to use an existing workspace. Every recognized region defaults to **Mask**. Use the crop as the source of truth. Type its exact transcription to keep it as text or pseudonymize the region with a restorable reference. A matching OCR pair and a checksum result can inform review. Only a human-confirmed transcription becomes restorable. OCR readings, coordinates, source digest, and review decisions are retained inside the encrypted workspace. Open the workspace in `app.py` to restore authorized references.
 
-The standalone line reviewer exports plain text. It approximates reading order by region position. The OCR workflow rasterizes each PDF page, including mixed pages, while regular document import uses the native text layer. Native-text coordinate fusion and automated page completeness checks remain open. Text positions can shift when a recognized region spans multiple OCR lines. Compare the export with the visual original before sharing.
+The standalone line reviewer exports plain text. It approximates reading order by region position. For PDF line review, the app maps native text boxes into raster coordinates and displays overlapping native text as additional evidence next to both OCR readings. Native-only regions enter the same manual review. Image and native-text readings both require visual confirmation. Automated page completeness checks remain open. Text positions can shift when a recognized region spans multiple OCR lines.
 
 ## Verification
 

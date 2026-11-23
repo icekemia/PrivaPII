@@ -14,6 +14,8 @@ python -m venv .venv
 
 After setup, **Start-PrivaPII.cmd** opens the app from the project folder. Run `.venv/Scripts/python.exe check_setup.py --mode ocr` to check installed dependencies and pinned asset checksums for the complete local configuration. Use `--mode nus` or `--mode rules` for smaller configurations.
 
+For a local Windows x64 pilot package, use `.venv/Scripts/python.exe build_windows_pilot.py --mode rules` or `--mode ocr`. Building downloads wheels. On the target PC, verify the adjacent SHA-256, extract the ZIP and run **Setup-PrivaPII.cmd** with Python 3.11 x64 and Tk available. Setup installs from the included wheelhouse. Run **Start-PrivaPII.cmd** afterward. The ZIP contains the application and dependencies. Install model assets separately in `models/` for NUS or OCR and run the setup checker.
+
 Rules mode detects Lithuanian phone formats, email addresses and checksum-valid personal, company, VAT and Lithuanian IBAN identifiers. Company-code detection requires a matching Lithuanian field label, and VAT detection requires the LT prefix. A reviewer can mark additional spans. With the evaluation dependencies and a complete local checkpoint, the default **NUS + rules** mode combines both detectors. Use **NUS only** to compare on the same text.
 
 1. Select **Create workspace** and save the vault under the ignored `vault/` directory or outside the repository. Choose a passphrase. Use **Import document** to open TXT, TSV, Markdown, DOCX or text-based PDF files, or paste text into a new document.
@@ -26,6 +28,8 @@ Use **Compare tokens** to compare the return with selected original pseudonymize
 The workspace stores an authenticated AES-GCM snapshot in SQLite. The passphrase derives the key locally with scrypt. If the passphrase is lost, the workspace cannot be recovered. Temporary mode keeps references in memory only. Linking is manual and scoped to the workspace. Confirmed identical surface forms can reuse a token, while different inflections have distinct tokens tied to the same entity. Previously generated references remain valid for their original surface forms after regrouping. Workspace files contain encrypted originals even when an output is redacted. Pseudonymized exports can retain identifying context.
 
 Use **Backup** in an unlocked workspace to save a separate encrypted copy after the current review is committed. Open the backup as a workspace with the same passphrase. Keep the backup and passphrase available separately when moving to another PC.
+
+Use **Retention** to set a workspace review reminder or explicitly forget the current document. A reminder leaves documents in place. Forgetting removes the selected document and tokens sourced exclusively from it in the active vault. Shared tokens with other source documents stay available. Manage old backups, original files and exported copies separately.
 
 **Import document** extracts the native PDF text layer and reports empty and mixed pages. For a single mixed PDF, use the prompt to open OCR review directly from an unlocked workspace. **Review scan** also processes scanned PDFs and raster images with [local OCR](docs/OCR.md). That workflow offers reversible text exports and an optional irreversible, image-only PDF with reviewed pixel masks. Automatic identity resolution and passphrase recovery remain outside this milestone.
 

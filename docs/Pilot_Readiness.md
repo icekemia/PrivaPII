@@ -3,10 +3,10 @@
 | Order | Work | Status and exit evidence |
 | --- | --- | --- |
 | 1 | Finish the return workflow | Save restored TXT, Markdown, CSV and Word locally. Compare a return against one or more selected exports to find omissions, repeated, unknown and possibly damaged tokens. |
-| 2 | Show extraction coverage | Surface mixed native-text and image pages and offer direct OCR review for a single mixed PDF. Explain Word body coverage. Remaining work includes native-text and OCR coordinate fusion and representative mixed-document fixtures. |
-| 3 | Qualify the reviewed result | Build an independent, authorized collection for the first supported domains. Freeze document and case splits. Measure critical omissions, retained content, review time, OCR field accuracy and restoration errors. Repeat the complete export and return with representative workflows. [Benchmark protocol](Benchmark_Protocol.md) |
-| 4 | Protect ongoing work | Create authenticated, encrypted backups and verify that they reopen and restore tokens. Add a local retention and deletion workflow and exercise backup recovery on a second PC. |
-| 5 | Make setup repeatable | Run the local dependency and checksum checker and start the app with the Windows launcher. Package the installation and verify NUS and both OCR engines offline on a second clean PC. Review dependency and asset licenses before distributing them. [Dependency review](Dependency_Review.md) |
+| 2 | Show extraction coverage | Mixed PDF import routes to OCR review. PDF line review aligns native text and OCR with the same raster coordinates. Word import reports body coverage. Independent mixed-document and OCR acceptance data remain open. |
+| 3 | Qualify the reviewed result | The benchmark accepts final review decisions and time and verifies the source digest. Authorized independent documents and human review observations are still needed to measure deployment quality. [Benchmark protocol](Benchmark_Protocol.md) |
+| 4 | Protect ongoing work | Authenticated backups, retention reminders and explicit document forgetting with exclusive-token removal are available. Reopen the backup on a second PC for the physical transfer test. |
+| 5 | Make setup repeatable | Windows x64 ZIPs use a local wheelhouse and installer script. Model assets stay separate and are checksum verified. Verify installation and recovery on a second clean PC. Review dependency and asset licenses before distributing the build. [Dependency review](Dependency_Review.md) |
 
 The first pilot should cover the complete reviewed text workflow on Windows. Acceptance evidence should include zero incorrect token substitutions in the tested scenarios, a successful backup recovery and a record of residual critical fields after review. Report results by input and export format. Include one native PDF, one mixed PDF and one scanned document before making OCR coverage claims. Keep corpus originals, private findings and vaults local.
 
@@ -16,4 +16,6 @@ The desktop smoke check saved a restored Markdown file, reopened an authenticate
 
 The current six-document synthetic check protected all ten annotated sensitive fields and retained all fourteen annotated dates and clause references. It restored all sixteen token occurrences in the combined Markdown result, including repeated excerpts. This is a regression check. The independent pilot collection and reviewed-output measurement remain separate work.
 
-Before the pilot, use separate backups when transferring work between devices. Test restoration using a copy and its passphrase. Define how long each workspace and its backups are kept, and who can access them. Workspace deletion and retention controls remain release tasks.
+The mixed-page smoke check processed a local one-page document and associated native text with 32 review regions. No region was confirmed automatically. A clean local Rules-only package installed using its offline wheelhouse. The mixed-page and clean-install checks ran on the development PC.
+
+Before the pilot, use separate backups when transferring work between devices. Test restoration using a copy and its passphrase. Define how long each workspace and its backups are kept, and who can access them. The active-vault forget action does not reach copies outside that vault.
