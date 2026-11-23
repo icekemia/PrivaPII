@@ -10,7 +10,7 @@ from pathlib import Path
 from tkinter import messagebox, ttk
 
 from nus import NusDetector
-from ocr import Paddle, Region, Tesseract, align, raster_pages
+from ocr import Paddle, Region, Tesseract, align, fuse_native, raster_evidence
 from tabular import detect_table
 from privapii import Span, hybrid, review_spans, rules
 from vault import Workspace, new_id
@@ -29,7 +29,7 @@ class Review:
 
 
 def find_categories(reviews, detector):
-    inputs = [" ".join(reading.text for reading in (item.region.primary or item.region.alternative))
+    inputs = [" ".join(reading.text for reading in (item.region.primary or item.region.alternative or item.region.native))
               for item in reviews]
     text = "\n".join(inputs)
     spans = review_spans(text, hybrid(text, detector(text)))
@@ -37,7 +37,7 @@ def find_categories(reviews, detector):
     for item, content in zip(reviews, inputs):
         labels = {span.label for span in spans
                   if span.start < offset + len(content) and span.end > offset}
-        for reading in item.region.alternative:
+        for reading in (*item.region.alternative, *item.region.native):
             labels.update(span.label for span in rules(reading.text))
         item.categories = tuple(sorted(labels))
         offset += len(content) + 1
@@ -54,9 +54,9 @@ class ScanProcessor:
         with source.open("rb") as stream:
             digest = hashlib.file_digest(stream, "sha256").hexdigest()
         pages, reviews = {}, []
-        for page, image in raster_pages(source, dpi):
+        for page, image, native in raster_evidence(source, dpi):
             pages[page] = image
-            regions = align(self.paddle.read(image), self.tesseract.read(image))
+            regions = fuse_native(align(self.paddle.read(image), self.tesseract.read(image)), native)
             if not regions:
                 regions = [Region((0, 0, image.width, image.height), (), (), "unresolved")]
             items = [Review(page, image.size, region) for region in regions]
@@ -223,6 +223,7 @@ class Reviewer:
         self.crop.configure(image=self.photo)
         primary = " / ".join(reading.text for reading in region.primary) or "—"
         alternative = " / ".join(reading.text for reading in region.alternative) or "—"
+        native = "\nPDF text layer: " + " / ".join(reading.text for reading in region.native) if region.native else ""
         labels = ", ".join(item.categories) or "—"
         position = f" · row {item.cell[0] + 1}, column {item.cell[1] + 1}" if item.cell is not None else ""
         if item.merged_anchor is not None:
@@ -230,7 +231,7 @@ class Reviewer:
             position += f" · continues row {row + 1}, column {column + 1}"
         self.details.set(
             f"Region {self.index + 1}/{len(self.reviews)} · page {item.page} · {region.status} · {item.action}\n"
-            f"PP-OCRv6: {primary}\nTesseract: {alternative}\nPossible categories: {labels}{position}"
+            f"PP-OCRv6: {primary}\nTesseract: {alternative}{native}\nPossible categories: {labels}{position}"
         )
         self.value.set(item.verified or "")
         self.entry.focus_set()

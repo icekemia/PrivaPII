@@ -10,7 +10,7 @@ from pathlib import Path
 class Reading:
     text: str
     box: tuple[int, int, int, int]
-    confidence: float
+    confidence: float | None
     engine: str
 
 
@@ -20,17 +20,23 @@ class Region:
     primary: tuple[Reading, ...]
     alternative: tuple[Reading, ...]
     status: str
+    native: tuple[Reading, ...] = ()
 
 
 def raster_pages(path: Path, dpi=250):
     """Yield 1-based page numbers and RGB images in original raster coordinates."""
+    for number, image, _ in raster_evidence(path, dpi, include_native=False):
+        yield number, image
+
+
+def raster_evidence(path: Path, dpi=250, *, include_native=True):
     from PIL import Image, ImageOps
 
     if path.suffix.lower() in {".png", ".jpeg", ".jpg", ".tiff", ".tif", ".bmp", ".webp"}:
         with Image.open(path) as image:
             for index in range(getattr(image, "n_frames", 1)):
                 image.seek(index)
-                yield index + 1, ImageOps.exif_transpose(image).convert("RGB")
+                yield index + 1, ImageOps.exif_transpose(image).convert("RGB"), ()
         return
     if path.suffix.lower() != ".pdf":
         raise ValueError("Choose a PDF or supported raster image.")
@@ -43,11 +49,54 @@ def raster_pages(path: Path, dpi=250):
                 bitmap = page.render(scale=dpi / 72)
                 try:
                     image = bitmap.to_pil().convert("RGB")
+                    readings = native_pdf_readings(page, bitmap) if include_native else ()
                 finally:
                     bitmap.close()
             finally:
                 page.close()
-            yield index + 1, image
+            yield index + 1, image, readings
+
+
+def native_pdf_readings(page, bitmap):
+    textpage = page.get_textpage()
+    converter = bitmap.get_posconv(page)
+    readings = []
+    try:
+        for index in range(textpage.count_rects()):
+            left, bottom, right, top = textpage.get_rect(index)
+            text = textpage.get_text_bounded(left, bottom, right, top).strip()
+            corners = [converter.to_bitmap(x, y) for x in (left, right) for y in (bottom, top)]
+            xs, ys = zip(*corners)
+            box = (max(0, min(xs)), max(0, min(ys)), min(bitmap.width, max(xs)), min(bitmap.height, max(ys)))
+            if text and box[0] < box[2] and box[1] < box[3]:
+                readings.append(Reading(text, box, None, "pdf-text-layer"))
+    finally:
+        textpage.close()
+    return tuple(readings)
+
+
+def fuse_native(regions, readings):
+    """Attach a PDF reading to overlapping OCR evidence or create a review region."""
+    from dataclasses import replace
+
+    result = list(regions)
+    for reading in readings:
+        matches = [i for i, region in enumerate(result) if overlaps(region.box, reading.box)]
+        if not matches:
+            result.append(Region(reading.box, (), (), "native_only", (reading,)))
+            continue
+        merged = [result[i] for i in matches]
+        boxes = [reading.box, *(region.box for region in merged)]
+        box = (min(b[0] for b in boxes), min(b[1] for b in boxes),
+               max(b[2] for b in boxes), max(b[3] for b in boxes))
+        combined = replace(merged[0], box=box,
+                           primary=tuple(item for region in merged for item in region.primary),
+                           alternative=tuple(item for region in merged for item in region.alternative),
+                           native=(*[item for region in merged for item in region.native], reading),
+                           status="review_with_native")
+        result = [region for i, region in enumerate(result) if i not in matches]
+        result.append(combined)
+    return sorted(result, key=lambda region: (region.box[1], region.box[0]))
 
 
 class Tesseract:
