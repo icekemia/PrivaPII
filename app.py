@@ -12,7 +12,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 from batch_export_view import BatchExportView
 from export_formats import TEXT_FORMATS, parse_csv, render_export, restore_csv, table_rows
 from export_review import inspect_export, retained_identifiers, retained_transcriptions
-from ingestion import extract
+from ingestion import extract_with_coverage
 from nus import NusDetector, checkpoint_ready
 from ocr import raster_pages
 from ocr_review import Reviewer, ScanProcessor, export_review
@@ -421,10 +421,11 @@ class App:
         if not paths or not self.persist():
             return
         imported = sum_empty = word_count = 0
+        mixed_pdfs = []
         for filename in paths:
             try:
                 path = Path(filename)
-                text, empty = extract(path)
+                text, empty, mixed = extract_with_coverage(path)
                 if not text.strip():
                     raise ValueError("The document contains no text.")
                 self.load_document(new_id(), path.name, text)
@@ -433,13 +434,25 @@ class App:
                 imported += 1
                 sum_empty += empty
                 word_count += path.suffix.lower() == ".docx"
+                if mixed:
+                    mixed_pdfs.append((path, mixed))
                 if not self.workspace_active():
                     break
             except (OSError, ValueError) as error:
                 messagebox.showerror("Import failed", str(error))
         if imported:
-            note = " Word import covers body text and tables." if word_count else ""
+            note = " Word import covers body text and tables. Review headers, footers and images separately." if word_count else ""
             self.status.set(f"{imported} imported. Detect and review extracted text. {sum_empty} PDF pages had no text.{note}")
+        if mixed_pdfs:
+            details = "\n".join(f"{path.name} · pages {', '.join(map(str, pages))}"
+                                for path, pages in mixed_pdfs)
+            notice = "These pages contain embedded images alongside native text. Image content needs visual or OCR review.\n\n"
+            if len(mixed_pdfs) == 1 and self.workspace_active():
+                if messagebox.askyesno("Mixed PDF pages", notice + details + "\n\nOpen this PDF in OCR review?",
+                                       parent=self.root):
+                    self.open_scan(path=mixed_pdfs[0][0])
+            else:
+                messagebox.showwarning("Mixed PDF pages", notice + details, parent=self.root)
 
     def set_processing(self, active):
         for button in (self.detect_button, self.scan_button, self.table_button):
@@ -520,14 +533,15 @@ class App:
 
         self.root.after(100, poll)
 
-    def open_scan(self, *, table=False):
+    def open_scan(self, *, table=False, path=None):
         if not self.workspace_active():
             self.status.set("Create or unlock a workspace before reviewing a scan.")
             return
         if not checkpoint_ready(self.model_dir):
             self.status.set("Install the local NUS checkpoint and OCR models to review a scan.")
             return
-        path = filedialog.askopenfilename(filetypes=[("Scans and images", "*.pdf *.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp")])
+        if path is None:
+            path = filedialog.askopenfilename(filetypes=[("Scans and images", "*.pdf *.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp")])
         if not path or not self.persist():
             return
         source = Path(path)
@@ -931,7 +945,7 @@ class App:
             else:
                 restored, count = self.case.restore(text)
             self.derived.edit_modified(False)
-            if count or self.derived_format.get() == "CSV":
+            if text.strip():
                 self.replace(self.restored, restored)
                 self.restored_result = (text, self.derived_format.get(), restored)
             self.status.set(f"{count} exact references restored. Review attribution and Lithuanian grammar.")
@@ -941,16 +955,23 @@ class App:
 
     def save_restored_file(self):
         kind = self.derived_format.get()
-        if kind not in {"CSV", "Word"} or not self.restored_result or self.restored_result[:2] != (
+        if not self.restored_result or self.restored_result[:2] != (
                 self.value(self.derived), kind):
-            self.status.set("Preview a CSV or Word restoration before saving.")
+            self.status.set("Preview the current restoration before saving.")
             return
-        extension = TEXT_FORMATS[kind]
-        path = filedialog.asksaveasfilename(defaultextension=extension, filetypes=[(kind, "*" + extension)])
+        if kind == "Text / Markdown":
+            extensions = {".txt", ".md"}
+            extension = ".txt"
+            filters = [("Text", "*.txt"), ("Markdown", "*.md")]
+        else:
+            extension = TEXT_FORMATS[kind]
+            extensions = {extension}
+            filters = [(kind, "*" + extension)]
+        path = filedialog.asksaveasfilename(defaultextension=extension, filetypes=filters)
         if not path:
             return
-        if Path(path).suffix.lower() != extension:
-            messagebox.showerror("Choose a matching extension", f"Use {extension} for the restored file.")
+        if Path(path).suffix.lower() not in extensions:
+            messagebox.showerror("Choose a matching extension", f"Use {' or '.join(sorted(extensions))}.")
             return
         try:
             if kind == "Word":
@@ -966,7 +987,7 @@ class App:
         except (OSError, UnicodeError) as error:
             messagebox.showerror("Save failed", str(error))
             return
-        self.status.set(f"Restored {kind} saved locally. It contains original values.")
+        self.status.set("Restored file saved locally. Review it before sharing.")
 
     def choose_person_form(self):
         if not self.workspace_active():

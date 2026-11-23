@@ -5,7 +5,7 @@ from pathlib import Path
 from pypdf import PdfWriter
 from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
-from ingestion import extract
+from ingestion import extract, extract_with_coverage
 from privapii import rules
 
 
@@ -25,6 +25,11 @@ class IngestionTests(unittest.TestCase):
         content = DecodedStreamObject()
         content.set_data(b"BT /F1 12 Tf 10 10 Td (Text fixture) Tj ET")
         page[NameObject("/Contents")] = writer._add_object(content)
+        image = DecodedStreamObject()
+        image.update({NameObject("/Subtype"): NameObject("/Image")})
+        page["/Resources"][NameObject("/XObject")] = DictionaryObject({
+            NameObject("/Im0"): writer._add_object(image),
+        })
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "test.pdf"
             with path.open("wb") as stream:
@@ -32,6 +37,7 @@ class IngestionTests(unittest.TestCase):
             text, empty = extract(path)
             self.assertIn("Text fixture", text)
             self.assertEqual(empty, 1)
+            self.assertEqual(extract_with_coverage(path), (text, 1, (1,)))
 
     def test_local_structured_ids_and_invalid_checksums(self):
         text = "Įmonės kodas: 123456786; PVM LT 100001919017. Netinka LT100001919018."
