@@ -9,7 +9,8 @@ from .batch_export import BATCH_FORMATS, Batch
 
 
 class BatchExportView:
-    def __init__(self, parent, workspace, categories, link_person_forms):
+    def __init__(self, parent, workspace, categories, link_person_forms, *,
+                 document_ids=None, groups=None, fields=None):
         self.window = tk.Toplevel(parent)
         self.window.title("Review workspace archive")
         self.window.geometry("980x680")
@@ -17,7 +18,10 @@ class BatchExportView:
         self.workspace = workspace
         self.categories = set(categories)
         self.link_person_forms = link_person_forms
-        self.keys = list(workspace.documents)
+        self.keys = list(workspace.documents if document_ids is None else document_ids)
+        self.require_all = document_ids is not None
+        self.groups = groups
+        self.fields = fields
         self.batch = None
         self.saved = False
 
@@ -25,10 +29,11 @@ class BatchExportView:
         options.pack(fill="x")
         ttk.Label(options, text="Archive format").pack(side="left")
         self.format_name = tk.StringVar(value="Markdown")
-        selector = ttk.Combobox(options, textvariable=self.format_name, values=BATCH_FORMATS,
+        selector = ttk.Combobox(options, textvariable=self.format_name,
+                                values=(*BATCH_FORMATS, "CSV") if fields else BATCH_FORMATS,
                                 state="readonly", width=13)
         selector.pack(side="left", padx=8)
-        selector.bind("<<ComboboxSelected>>", self.invalidate)
+        selector.bind("<<ComboboxSelected>>", self.change_format)
         ttk.Label(options, text="Linked person IDs on" if link_person_forms else "Linked person IDs off").pack(side="left")
 
         panes = ttk.Panedwindow(self.window, orient="horizontal")
@@ -36,7 +41,8 @@ class BatchExportView:
         left, right = ttk.Frame(panes, padding=6), ttk.Frame(panes, padding=6)
         panes.add(left, weight=1)
         panes.add(right, weight=3)
-        ttk.Label(left, text="Select saved documents").pack(anchor="w")
+        ttk.Label(left, text="Documents in this export" if self.require_all else
+                  "Select saved documents").pack(anchor="w")
         listing = ttk.Frame(left)
         listing.pack(fill="both", expand=True, pady=4)
         self.documents = tk.Listbox(listing, selectmode="extended", exportselection=False, width=30)
@@ -48,8 +54,16 @@ class BatchExportView:
             name = workspace.documents[key]["name"]
             self.documents.insert("end", f"{name} · {key[:8]}")
         self.documents.bind("<<ListboxSelect>>", self.invalidate)
-        ttk.Button(left, text="Select all", command=self.select_all).pack(fill="x", pady=2)
+        if not self.require_all:
+            ttk.Button(left, text="Select all", command=self.select_all).pack(fill="x", pady=2)
         ttk.Button(left, text="Prepare previews", command=self.prepare).pack(fill="x", pady=2)
+        self.field_picker = ttk.Frame(left)
+        self.field_labels = sorted({field.label for rules in (fields or {}).values() for field in rules})
+        ttk.Label(self.field_picker, text="Choose fields for fields.csv").pack(anchor="w")
+        self.field_list = tk.Listbox(self.field_picker, selectmode="multiple", exportselection=False, height=7)
+        self.field_list.pack(fill="x")
+        self.field_list.insert("end", *self.field_labels)
+        self.field_list.bind("<<ListboxSelect>>", self.invalidate)
 
         self.files = ttk.Combobox(right, state="readonly")
         self.files.pack(fill="x")
@@ -95,19 +109,39 @@ class BatchExportView:
         self.documents.selection_set(0, "end")
         self.invalidate()
 
+    def change_format(self, _event=None):
+        if self.format_name.get() == "CSV":
+            self.field_picker.pack(fill="x", pady=8)
+        else:
+            self.field_picker.pack_forget()
+        self.invalidate()
+
     def prepare(self):
-        keys = [self.keys[index] for index in self.documents.curselection()]
+        keys = self.keys if self.require_all else [self.keys[index] for index in self.documents.curselection()]
         if not keys:
             self.status.set("Select at least one document.")
             return
         self.invalidate()
+        projections = None
+        if self.format_name.get() == "CSV":
+            labels = {self.field_labels[index] for index in self.field_list.curselection()}
+            if not labels:
+                self.status.set("Choose at least one field for the CSV.")
+                return
+            projections = {key: [field for field in self.fields[key] if field.label in labels] for key in keys}
         try:
             self.batch = Batch(self.workspace, keys, self.categories, self.format_name.get(),
-                               link_person_forms=self.link_person_forms)
+                               link_person_forms=self.link_person_forms, groups=self.groups,
+                               projections=projections)
         except ValueError as error:
             messagebox.showerror("Could not prepare archive", str(error), parent=self.window)
             return
-        self.files.configure(values=[f"{item.archive_name} · {item.source_name}" for item in self.batch.items])
+        if self.format_name.get() == "CSV":
+            labels = [f"Rows from document {index:03d} · {item.source_name}"
+                      for index, item in enumerate(self.batch.items, 1)]
+        else:
+            labels = [f"{item.archive_name} · {item.source_name}" for item in self.batch.items]
+        self.files.configure(values=labels)
         self.files.current(0)
         self.confirm_button.state(["!disabled"])
         self.show_item()

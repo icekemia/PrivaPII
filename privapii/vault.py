@@ -32,6 +32,7 @@ class Workspace:
             salt = secrets.token_bytes(16)
             self.id = new_id()
             self.documents, self.references, self.profiles = {}, {}, {}
+            self.document_templates = {}
             self.active_profile = "Standard"
             self.retention_review_on = None
             self.revision = 0
@@ -57,6 +58,7 @@ class Workspace:
         self.documents = state["documents"]
         self.references = state["references"]
         self.profiles = state["profiles"]
+        self.document_templates = state.get("document_templates", {})
         self.active_profile = state.get("active_profile", "Standard")
         self.retention_review_on = state.get("retention_review_on")
 
@@ -76,6 +78,7 @@ class Workspace:
         clear = json.dumps({
             "documents": self.documents, "references": self.references, "profiles": self.profiles,
             "active_profile": self.active_profile,
+            "document_templates": self.document_templates,
             "retention_review_on": self.retention_review_on,
         }, ensure_ascii=False).encode("utf-8")
         return nonce + self.cipher.encrypt(nonce, clear, self.aad(revision))

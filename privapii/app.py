@@ -11,6 +11,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from .batch_export_view import BatchExportView
+from .document_template_view import DocumentTemplateView
 from .export_formats import TEXT_FORMATS, parse_csv, render_export, restore_csv, table_rows
 from .export_review import inspect_export, retained_identifiers, retained_transcriptions
 from .ingestion import extract_with_coverage
@@ -190,6 +191,7 @@ class App:
         self.scan_button.pack(side="left", padx=(0, 6))
         self.button(bar, "Mark selected text", self.mark)
         self.button(bar, "Categories and profiles", self.edit_policy)
+        self.button(workspace, "Document models", self.document_models)
         modes = ("Rules only", "NUS only", "NUS + rules") if checkpoint_ready(model_dir) else ("Rules only",)
         self.mode = tk.StringVar(value=modes[-1])
         ttk.Combobox(bar, textvariable=self.mode, values=modes, width=14, state="readonly").pack(side="right")
@@ -953,6 +955,18 @@ class App:
             return
         retained = retained_identifiers(source, self.spans, indices)
         self.preview_text_export(text, self.document_name, source_text=source, retained=retained)
+
+    def document_models(self):
+        if not self.workspace_active():
+            self.status.set("Open a persistent workspace to set up models or process client folders.")
+            return
+        if not self.persist():
+            return
+        mode = self.mode.get()
+        view = DocumentTemplateView(self.root, self.case, lambda text: self.compute(text, mode))
+        view.window.grab_set()
+        self.root.wait_window(view.window)
+        self.refresh_documents()
 
     def export_workspace(self):
         if not self.workspace_active():

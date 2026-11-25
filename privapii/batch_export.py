@@ -1,14 +1,33 @@
 """Prepare reviewed exports and save an archive without source filenames."""
 
+import re
 from dataclasses import dataclass
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from .export_formats import TEXT_FORMATS, render_export
+from .export_formats import TEXT_FORMATS, csv_text, parse_csv, render_export
 from .export_review import Residual, inspect_export, retained_identifiers
 from .policy import selected_indices
 from .detection import Span
 
 BATCH_FORMATS = ("TXT", "Markdown")
+FIELD_HEADER = ("client_id", "document_id", "field", "value")
+
+
+def field_rows(text, fields, client_id, document_id):
+    rows = []
+    for field in fields:
+        locations = field.locations(text)
+        if len(locations) != 1:
+            raise ValueError(f"Could not isolate the exported field {field.label}.")
+        start, end = locations[0]
+        value = text[start:end]
+        if field.label.lstrip().startswith(("=", "+", "-", "@")) or (
+            value.lstrip().startswith(("=", "+", "-", "@"))
+            and not re.fullmatch(r"[+-][0-9]+(?:[.,][0-9]+)?", value)
+        ):
+            raise ValueError(f"{field.label}: value or label may be interpreted as a spreadsheet formula.")
+        rows.append((client_id, document_id, field.label, value))
+    return rows
 
 
 @dataclass(frozen=True)
@@ -21,13 +40,16 @@ class BatchItem:
 
 
 class Batch:
-    def __init__(self, workspace, document_ids, categories, kind, *, link_person_forms=False):
-        if kind not in BATCH_FORMATS or not document_ids or len(set(document_ids)) != len(document_ids):
+    def __init__(self, workspace, document_ids, categories, kind, *,
+                 link_person_forms=False, groups=None, projections=None):
+        formats = (*BATCH_FORMATS, "CSV") if projections else BATCH_FORMATS
+        if kind not in formats or not document_ids or len(set(document_ids)) != len(document_ids):
             raise ValueError("Select distinct documents and a supported archive format.")
         self.workspace = workspace
         self.revision = workspace.revision
         self.staged = {}
         self.approved = set()
+        self.kind = kind
         items = []
         for index, key in enumerate(document_ids, 1):
             document = workspace.documents[key]
@@ -40,10 +62,21 @@ class Batch:
                 key, selected, link_person_forms=link_person_forms, staged=self.staged,
             )
             self.staged.update(pending)
-            rendered = render_export(protected, kind, name)
+            document_id = f"document-{index:03d}"
+            client_id = f"client-{groups[key]:03d}" if groups else ""
+            if kind == "CSV":
+                rows = field_rows(protected, projections[key], client_id, document_id)
+                rendered = csv_text([FIELD_HEADER, *rows])
+                expected = "\n".join(row[-1] for row in rows)
+            else:
+                rendered = render_export(protected, kind, name)
+                expected = protected
             retained = retained_identifiers(source, spans, selected)
-            count, findings = inspect_export(rendered, kind, protected, retained)
-            items.append(BatchItem(name, f"document-{index:03d}{TEXT_FORMATS[kind]}",
+            count, findings = inspect_export(rendered, kind, expected, retained)
+            filename = f"{document_id}.csv" if kind == "CSV" else f"{document_id}{TEXT_FORMATS[kind]}"
+            if client_id:
+                filename = f"{client_id}/{filename}"
+            items.append(BatchItem(name, filename,
                                    rendered, count, tuple(findings)))
         self.items = tuple(items)
 
@@ -69,8 +102,12 @@ class Batch:
                 self.workspace.commit_references(self.staged)
                 self.revision = self.workspace.revision
                 with ZipFile(stream, "w", compression=ZIP_DEFLATED) as archive:
-                    for item in self.items:
-                        archive.writestr(item.archive_name, item.text.encode("utf-8"))
+                    if self.kind == "CSV":
+                        rows = [row for item in self.items for row in parse_csv(item.text)[1:]]
+                        archive.writestr("fields.csv", csv_text([FIELD_HEADER, *rows]).encode("utf-8"))
+                    else:
+                        for item in self.items:
+                            archive.writestr(item.archive_name, item.text.encode("utf-8"))
         except Exception:
             if created:
                 path.unlink(missing_ok=True)

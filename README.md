@@ -93,6 +93,18 @@ Pseudonymized documents can still contain identifying context. Match the scope o
 3. Select **Preview local restoration**. Check who is being referred to and whether the Lithuanian grammar still fits. If the sentence changed, **Choose verified person form** lets you select another recorded form for a single occurrence.
 4. Use **Save restored file** and put the result in your local `restored/` folder. **Backup** creates a separate encrypted workspace copy. Test that you can open it with the same passphrase before relying on it.
 
+## Process standard forms in batches
+
+Use **Document models** in an unlocked workspace when each client has the same set of standard PDFs. Open a sample PDF with selectable text. Select a heading that identifies the form version, then select each printed field label before its colon. Choose **Protect** or **Keep visible** and mark a field as optional only if it can legitimately be blank. For example, protect the value on the line starting with “Gimimo data:” and keep the value on the line starting with “Dokumento data:”.
+
+Choose **Test on another PDF** and verify the highlighted fields against that PDF. Approve the model after checking the matches. Changing an approved model creates a new version. The encrypted workspace stores labels and rules. Use generic field labels and a non-personal heading and model name.
+
+In **Process client folders**, choose a parent directory containing one folder per client and select the required models. Include one PDF per model. PrivaPII reports unknown forms, duplicate documents and missing, repeated or empty required fields. By default any such issue excludes the entire client folder. The partial option includes only the documents that passed the checks and can change which records contribute to a KPI.
+
+Choose CSV and select the fields needed for the analysis to create one “fields.csv” in the ZIP. Each row holds a document ID, field name and value. For full reviewed text, choose TXT or Markdown. Review the output of each included document before saving. To let a downstream tool associate documents from one client, enable temporary grouping. This adds a neutral client column in CSV or neutral client folders such as “client-001” in a text ZIP. Results are reversible in the same vault. Review information outside the modeled fields before exporting full text.
+
+This workflow supports a single inline “Label: value” field per line in native-text PDFs. It flags pages with images or missing text for separate review. Use a distinct printed heading for each form version you intend to distinguish. Scanned PDFs and tables can be reviewed with the existing scan and table tools.
+
 ## Testing and reference
 
 - [First-use walkthrough and feedback checklist](docs/Demo_Guide.md)
